@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run dev)",
+      "Bash(curl -X GET http://localhost:5000/health)",
+      "Bash(curl -X POST http://localhost:5000/api/auth/send-otp -H \"Content-Type: application/json\" -d '{\"\"phone\"\": \"\"+917758880580\"\"}')",
+      "Bash(curl -X POST http://localhost:5000/api/auth/send-otp -H \"Content-Type: application/json\" -d '{\"\"\"\"phone\"\"\"\": \"\"\"\"+917758880580\"\"\"\"}')",
+      "Bash(curl \"https://api.green-api.com/waInstance7103541630/getStateInstance/590a2bbb7aa04ac7ac65ed969d1d8177485375602e641b788\")",
+      "Bash(curl \"https://api.green-api.com/waInstance7103541630/getStateInstance/590a2bbb7aa04ac7ac65ed969d1d81774853756022e641b788\")",
+      "Bash(curl -X POST http://localhost:5000/api/auth/verify-otp -H \"Content-Type: application/json\" -d '{\"\"\"\"phone\"\"\"\": \"\"\"\"+917758880580\"\"\"\", \"\"\"\"otp\"\"\"\": \"\"\"\"272810\"\"\"\"}')",
+      "Bash(curl -X GET http://localhost:5000/api/auth/me -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2OWFmMjZiMjFhYWQ2YzYxNGIxMTQ3MjciLCJwaG9uZSI6Iis5MTc3NTg4ODA1ODAiLCJpYXQiOjE3NzMwODY3ODEsImV4cCI6MTc3MzY5MTU4MX0.vB6Osp5S16qnOgicB8iSYQOd8nkzxjhsojnn2U8Rkeg\")",
+      "Bash(node scripts/createAdmin.js)",
+      "Bash(curl -X POST http://localhost:5000/api/admin/login -H \"Content-Type: application/json\" -d '{\"\"\"\"username\"\"\"\": \"\"\"\"+910000000000\"\"\"\", \"\"\"\"password\"\"\"\": \"\"\"\"Admin@123\"\"\"\"}')",
+      "Bash(curl -X GET http://localhost:5000/api/admin/me -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2OWFmMjZiMjFhYWQ2YzYxNGIxMTQ3MjciLCJwaG9uZSI6Iis5MTc3NTg4ODA1ODAiLCJpYXQiOjE3NzMwODY3ODEsImV4cCI6MTc3MzY5MTU4MX0.vB6Osp5S16qnOgicB8iSYQOd8nkzxjhsojnn2U8Rkeg\")",
+      "Bash(curl -X POST http://localhost:5000/api/admin/login -H \"Content-Type: application/json\" -d '{\"\"\"\"username\"\"\"\": \"\"\"\"+910000000000\"\"\"\", \"\"\"\"password\"\"\"\": \"\"\"\"Admin@123\"\"\"\"}' -s)",
+      "Bash(curl -X POST http://localhost:5000/api/categories -H \"Content-Type: application/json\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2OWFmMzFiNjhiNDkyOTQwMmM4ZjU5OGYiLCJwaG9uZSI6Iis5MTAwMDAwMDAwMDAiLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3NzMwOTAxNzQsImV4cCI6MTc3MzY5NDk3NH0.YpV2WFJt8fu1BELGmvX2e9tL4M-klybQ2P7Q39zsnhI\" -d '{\"\"\"\"name\"\"\"\": \"\"\"\"Electronics\"\"\"\", \"\"\"\"description\"\"\"\": \"\"\"\"Electronic devices and gadgets\"\"\"\", \"\"\"\"displayOrder\"\"\"\": 1}')",
+      "Bash(curl -X POST http://localhost:5000/api/categories -H \"Content-Type: application/json\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2OWFmMzFiNjhiNDkyOTQwMmM4ZjU5OGYiLCJwaG9uZSI6Iis5MTAwMDAwMDAwMDAiLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3NzMwOTAxNzQsImV4cCI6MTc3MzY5NDk3NH0.YpV2WFJt8fu1BELGmvX2e9tL4M-klybQ2P7Q39zsnhI\" -d '{\"\"\"\"name\"\"\"\": \"\"\"\"Clothing & Fashion\"\"\"\", \"\"\"\"description\"\"\"\": \"\"\"\"Trendy clothes and accessories\"\"\"\"}')",
+      "Bash(curl -X POST http://localhost:5000/api/categories -H \"Content-Type: application/json\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2OWFmMzFiNjhiNDkyOTQwMmM4ZjU5OGYiLCJwaG9uZSI6Iis5MTAwMDAwMDAwMDAiLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3NzMwOTAxNzQsImV4cCI6MTc3MzY5NDk3NH0.YpV2WFJt8fu1BELGmvX2e9tL4M-klybQ2P7Q39zsnhI\" -d '{\"\"\"\"name\"\"\"\": \"\"\"\"Home & Kitchen\"\"\"\", \"\"\"\"description\"\"\"\": \"\"\"\"Everything for your home\"\"\"\"}')",
+      "Bash(curl -X GET http://localhost:5000/api/categories)",
+      "Bash(curl -X GET http://localhost:5000/api/categories/electronics)",
+      "Bash(curl -X PUT http://localhost:5000/api/categories/69af35be2dcf47393eae990a -H \"Content-Type: application/json\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2OWFmMzFiNjhiNDkyOTQwMmM4ZjU5OGYiLCJwaG9uZSI6Iis5MTAwMDAwMDAwMDAiLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3NzMwOTAxNzQsImV4cCI6MTc3MzY5NDk3NH0.YpV2WFJt8fu1BELGmvX2e9tL4M-klybQ2P7Q39zsnhI\" -d '{\"\"\"\"name\"\"\"\": \"\"\"\"Electronics & Gadgets\"\"\"\", \"\"\"\"displayOrder\"\"\"\": 0}')",
+      "Bash(curl -X POST http://localhost:5000/api/categories -H \"Content-Type: application/json\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2OWFmMjZiMjFhYWQ2YzYxNGIxMTQ3MjciLCJwaG9uZSI6Iis5MTc3NTg4ODA1ODAiLCJpYXQiOjE3NzMwODY3ODEsImV4cCI6MTc3MzY5MTU4MX0.vB6Osp5S16qnOgicB8iSYQOd8nkzxjhsojnn2U8Rkeg\" -d '{\"\"\"\"name\"\"\"\": \"\"\"\"Test\"\"\"\"}')"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

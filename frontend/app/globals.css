@@ -1,0 +1,54 @@
+@import url('https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@300;400;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --page-top: #f8f5ff;
+  --page-bottom: #efe8ff;
+}
+
+html {
+  min-height: 100%;
+}
+
+body {
+  min-height: 100vh;
+  font-family: "Josefin Sans", ui-sans-serif, system-ui, sans-serif;
+  color: #241348;
+  background:
+    radial-gradient(circle at top left, rgba(221, 214, 254, 0.5), transparent 32rem),
+    linear-gradient(180deg, var(--page-top) 0%, #ffffff 26rem, var(--page-bottom) 100%);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.triangle::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -1rem;
+  border: 1rem solid transparent;
+  border-left-color: #ffffff;
+}
+
+.grid-pattern {
+  background-image:
+    linear-gradient(rgba(91, 33, 182, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(91, 33, 182, 0.045) 1px, transparent 1px);
+  background-size: 2rem 2rem;
+}
+
+.panel-surface {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(16px);
+}
+
+.input-field {
+  @apply w-full rounded-2xl border border-palette-light bg-white px-4 py-3 text-base text-palette-dark outline-none transition focus:border-palette-primary;
+}
