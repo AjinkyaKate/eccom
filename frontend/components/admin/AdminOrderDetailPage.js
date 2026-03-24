@@ -26,6 +26,57 @@ export default function AdminOrderDetailPage({ orderId }) {
   const [statusForm, setStatusForm] = useState({ status: '', note: '' });
   const [paymentForm, setPaymentForm] = useState({ status: '', note: '', paidAmount: '' });
   const [isUpdating, setIsUpdating] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+
+  const fetchInvoiceBlob = async (preview = false) => {
+    const token = window.localStorage.getItem('adminToken');
+    const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+    const qs = preview ? '?preview=1' : '';
+    const r = await fetch(`${apiBase}/api/admin/orders/${orderId}/invoice/pdf${qs}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!r.ok) throw new Error('Failed to generate invoice PDF');
+    return r.blob();
+  };
+
+  const handlePreview = async () => {
+    setIsPreviewLoading(true);
+    setError('');
+    try {
+      const blob = await fetchInvoiceBlob(true);
+      const url = URL.createObjectURL(blob);
+      setPreviewUrl(url);
+      setIsPreviewOpen(true);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  };
+
+  const handleDownload = async () => {
+    try {
+      const blob = await fetchInvoiceBlob(false);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `invoice-${order.invoice?.invoiceNumber || order.orderNumber}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    }
+  };
+
+  const closePreview = () => {
+    setIsPreviewOpen(false);
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+    }
+  };
 
   const loadOrder = async () => {
     const token = window.localStorage.getItem('adminToken');
@@ -143,17 +194,70 @@ export default function AdminOrderDetailPage({ orderId }) {
             description="This page fetches one order document and lets the admin update order and payment state using the real backend rules."
           />
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <StatusPill>{order?.status}</StatusPill>
           <StatusPill tone={order?.payment?.status === 'paid' ? 'success' : 'soft'}>
             payment {order?.payment?.status}
           </StatusPill>
+          {order && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handlePreview}
+                disabled={isPreviewLoading}
+                className="rounded-full border border-palette-primary bg-white px-4 py-2 text-xs font-semibold text-palette-primary transition hover:bg-palette-lighter disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isPreviewLoading ? 'Loading...' : 'Preview Invoice'}
+              </button>
+              <button
+                onClick={handleDownload}
+                className="rounded-full border border-palette-light bg-white px-4 py-2 text-xs font-semibold text-palette-dark transition hover:border-palette-primary hover:text-palette-primary"
+              >
+                Download PDF
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
       {error ? (
         <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-red-700">{error}</div>
       ) : null}
+
+      {/* ── Invoice / Bill status banner ── */}
+      {order && (
+        <div className={`flex items-center justify-between rounded-2xl border px-6 py-4 ${
+          order.invoice?.isGenerated
+            ? 'border-green-200 bg-green-50'
+            : 'border-amber-200 bg-amber-50'
+        }`}>
+          <div>
+            {order.invoice?.isGenerated ? (
+              <>
+                <p className="text-sm font-semibold text-green-800">Invoice Generated</p>
+                <p className="mt-0.5 text-xs text-green-700">
+                  {order.invoice.invoiceNumber} &nbsp;·&nbsp; {formatDateTime(order.invoice.generatedAt)}
+                  {order.invoice.amount ? ` · ₹${order.invoice.amount}` : ''}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-semibold text-amber-800">Bill Pending</p>
+                <p className="mt-0.5 text-xs text-amber-700">
+                  Invoice will be auto-generated when payment is marked as <strong>paid</strong>.
+                  PDF can still be previewed using the order number as reference.
+                </p>
+              </>
+            )}
+          </div>
+          <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold tracking-wide ${
+            order.invoice?.isGenerated
+              ? 'bg-green-600 text-white'
+              : 'bg-amber-100 text-amber-700 ring-1 ring-amber-300'
+          }`}>
+            {order.invoice?.isGenerated ? 'PAID BILL' : 'BILL PENDING'}
+          </span>
+        </div>
+      )}
 
       <div className="grid gap-8 xl:grid-cols-[1.15fr_0.85fr]">
         <section className="space-y-6">
@@ -339,6 +443,51 @@ export default function AdminOrderDetailPage({ orderId }) {
           ) : null}
         </section>
       </div>
+      {/* ── Invoice preview modal ── */}
+      {isPreviewOpen && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col bg-black/60"
+          onClick={closePreview}
+        >
+          {/* Modal toolbar */}
+          <div
+            className="flex shrink-0 items-center justify-between bg-white px-6 py-3 shadow-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div>
+              <p className="text-sm font-semibold text-palette-dark">
+                Invoice Preview
+              </p>
+              <p className="text-xs text-palette-dark/50">
+                {order.invoice?.invoiceNumber || order.orderNumber}
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleDownload}
+                className="rounded-full bg-palette-primary px-5 py-2 text-xs font-semibold text-white transition hover:bg-palette-dark"
+              >
+                Download PDF
+              </button>
+              <button
+                onClick={closePreview}
+                className="rounded-full border border-palette-light px-5 py-2 text-xs font-semibold text-palette-dark transition hover:border-palette-primary"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+
+          {/* PDF iframe */}
+          <div className="flex-1 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <iframe
+              src={previewUrl}
+              className="h-full w-full border-0"
+              title="Invoice Preview"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

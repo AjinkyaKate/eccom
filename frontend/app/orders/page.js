@@ -81,13 +81,7 @@ export default function CustomerOrdersPage() {
 
   return (
     <div className="mx-auto max-w-shell space-y-8 px-6 py-10">
-      <section className="panel-surface rounded-[2rem] border border-palette-light/80 p-8 shadow-panel">
-        <SectionHeading
-          eyebrow="Customer history"
-          title="My orders"
-          description="This list comes from GET /api/orders and mirrors what the customer website will show after checkout."
-        />
-      </section>
+      <SectionHeading eyebrow="Account" title="My Orders" />
 
       {error ? <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-red-700">{error}</div> : null}
 

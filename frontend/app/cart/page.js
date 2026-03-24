@@ -119,8 +119,8 @@ export default function CartPage() {
         <div className="rounded-[2rem] border border-palette-light bg-white p-8 shadow-panel">
           <SectionHeading
             eyebrow="Cart"
-            title="Login first to view your cart"
-            description="Cart APIs are customer-protected, so the storefront needs a valid customer token before the backend will return cart data."
+            title="Login to view your cart"
+            description="Please login to access your cart."
           />
           <div className="mt-6">
             <Link
@@ -139,11 +139,7 @@ export default function CartPage() {
     <div className="mx-auto max-w-shell space-y-8 px-6 py-10">
       <section className="panel-surface rounded-[2rem] border border-palette-light/80 p-8 shadow-panel">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <SectionHeading
-            eyebrow="Cart"
-            title="Customer cart"
-            description="This page uses GET, PUT, DELETE, and clear-cart actions directly against the cart controller."
-          />
+          <SectionHeading eyebrow="Shopping" title="Your Cart" />
           <button
             type="button"
             onClick={clearCart}

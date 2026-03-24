@@ -5,7 +5,6 @@ const orderItemSchema = new mongoose.Schema(
     product: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Product',
-      required: true,
     },
     name: {
       type: String,
@@ -19,10 +18,22 @@ const orderItemSchema = new mongoose.Schema(
     },
     sku: {
       type: String,
-      required: true,
       trim: true,
       uppercase: true,
     },
+    hsn: {
+      type: String,
+      trim: true,
+    },
+    unit: {
+      type: String,
+      trim: true,
+      default: 'PCS',
+    },
+    cgstRate: { type: Number, default: 0 },
+    cgstAmount: { type: Number, default: 0 },
+    sgstRate: { type: Number, default: 0 },
+    sgstAmount: { type: Number, default: 0 },
     price: {
       type: Number,
       required: true,
@@ -120,7 +131,6 @@ const customerSnapshotSchema = new mongoose.Schema(
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
       index: true,
     },
     phone: {
@@ -354,7 +364,7 @@ const orderSchema = new mongoose.Schema(
     },
     source: {
       type: String,
-      enum: ['website', 'whatsapp'],
+      enum: ['website', 'whatsapp', 'admin'],
       default: 'website',
     },
     customerNotes: {

@@ -47,11 +47,7 @@ export default function AddToCartPanel({ productId, stock }) {
 
   return (
     <div className="rounded-[2rem] border border-palette-light bg-white p-6 shadow-panel">
-      <h2 className="text-2xl font-semibold text-palette-dark">Ready to order?</h2>
-      <p className="mt-3 text-base leading-7 text-palette-dark/75">
-        Use the real cart API now. The only thing still deferred is the smarter location flow; manual checkout
-        address works already.
-      </p>
+      <h2 className="text-2xl font-semibold text-palette-dark">Add to Cart</h2>
       <div className="mt-5 flex flex-wrap items-center gap-4">
         <input
           type="number"

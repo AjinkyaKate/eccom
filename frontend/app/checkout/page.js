@@ -117,8 +117,8 @@ export default function CheckoutPage() {
         <div className="rounded-[2rem] border border-palette-light bg-white p-8 shadow-panel">
           <SectionHeading
             eyebrow="Checkout"
-            title="Customer login is required"
-            description="The checkout summary and place-order APIs are protected, so we need a valid customer session first."
+            title="Login to checkout"
+            description="Please login first to place your order."
           />
           <div className="mt-6">
             <Link
@@ -135,13 +135,12 @@ export default function CheckoutPage() {
 
   return (
     <div className="mx-auto max-w-shell space-y-8 px-6 py-10">
-      <section className="panel-surface rounded-[2rem] border border-palette-light/80 p-8 shadow-panel">
-        <SectionHeading
-          eyebrow="Checkout"
-          title="Manual address checkout"
-          description="This uses the current backend checkout flow exactly as-is: COD only, manual address input now, smarter location flow later."
-        />
-      </section>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <SectionHeading eyebrow="Checkout" title="Place Your Order" />
+        <Link href="/cart" className="text-sm font-semibold text-palette-primary hover:text-palette-dark">
+          ← Back to cart
+        </Link>
+      </div>
 
       {error ? <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-red-700">{error}</div> : null}
 

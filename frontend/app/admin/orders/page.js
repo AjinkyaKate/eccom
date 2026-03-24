@@ -69,7 +69,15 @@ export default function AdminOrdersPage() {
 
   return (
     <div className="mx-auto max-w-shell space-y-6 px-6 py-10">
-      <SectionHeading eyebrow="Operations" title="Order queue" />
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <SectionHeading eyebrow="Operations" title="Order queue" />
+        <Link
+          href="/admin/orders/new"
+          className="rounded-full bg-palette-primary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-palette-dark"
+        >
+          + New Order
+        </Link>
+      </div>
 
       {/* Filters */}
       <div className="panel-surface rounded-[2rem] border border-palette-light/80 px-6 py-5 shadow-panel">
@@ -134,16 +142,16 @@ export default function AdminOrdersPage() {
                 <th className="px-6 py-4">Customer</th>
                 <th className="px-6 py-4">Status</th>
                 <th className="px-6 py-4">Payment</th>
+                <th className="px-6 py-4">Invoice</th>
                 <th className="px-6 py-4">Total</th>
-                <th className="px-6 py-4">Source</th>
                 <th className="px-6 py-4">Placed</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-palette-light/70 text-sm text-palette-dark">
               {isLoading ? (
-                <tr><td colSpan={7} className="px-6 py-8 text-center text-palette-dark/50">Loading...</td></tr>
+                <tr><td colSpan={8} className="px-6 py-8 text-center text-palette-dark/50">Loading...</td></tr>
               ) : orders.length === 0 ? (
-                <tr><td colSpan={7} className="px-6 py-8 text-center text-palette-dark/50">No orders match.</td></tr>
+                <tr><td colSpan={8} className="px-6 py-8 text-center text-palette-dark/50">No orders match.</td></tr>
               ) : orders.map((order) => (
                 <tr key={order._id} className="hover:bg-palette-mist">
                   <td className="px-6 py-4">
@@ -163,8 +171,20 @@ export default function AdminOrdersPage() {
                       {order.payment?.status || 'pending'}
                     </StatusPill>
                   </td>
+                  <td className="px-6 py-4">
+                    {order.invoice?.isGenerated ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700 ring-1 ring-green-200">
+                        <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                        {order.invoice.invoiceNumber}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-600 ring-1 ring-amber-200">
+                        <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                        Pending
+                      </span>
+                    )}
+                  </td>
                   <td className="px-6 py-4 font-semibold">{formatCurrency(order.pricing?.total || 0)}</td>
-                  <td className="px-6 py-4 capitalize text-palette-dark/70">{order.source || 'website'}</td>
                   <td className="px-6 py-4 text-palette-dark/70">{formatDateTime(order.createdAt)}</td>
                 </tr>
               ))}

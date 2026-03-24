@@ -62,8 +62,8 @@ export default async function ProductPage({ params }) {
         </div>
         <div className="space-y-6">
           <div className="space-y-4">
-            <Link href="/" className="text-sm font-semibold text-palette-primary hover:text-palette-dark">
-              ← Back to storefront
+            <Link href="/products" className="text-sm font-semibold text-palette-primary hover:text-palette-dark">
+              ← Back to products
             </Link>
             <StatusPill tone={product.stock > 0 ? 'soft' : 'warn'}>
               {product.stock > 0 ? `${product.stock} units in stock` : 'Out of stock'}
@@ -84,13 +84,12 @@ export default async function ProductPage({ params }) {
               <p className="mt-3 text-xl font-semibold text-palette-dark">{product.sku}</p>
             </div>
           </div>
-          <div className="rounded-[2rem] border border-palette-light bg-white p-6 shadow-panel">
-            <h2 className="text-xl font-semibold text-palette-dark">Why this page matters</h2>
-            <p className="mt-3 text-base leading-7 text-palette-dark/75">
-              This page is already using your public product-detail API, so later the cart and checkout actions can
-              be dropped in without changing the design system.
-            </p>
-          </div>
+          {product.description && (
+            <div className="rounded-[2rem] border border-palette-light bg-white p-6 shadow-panel">
+              <h2 className="text-base font-semibold text-palette-dark">Description</h2>
+              <p className="mt-2 text-sm leading-7 text-palette-dark/75">{product.description}</p>
+            </div>
+          )}
           <AddToCartPanel productId={product._id} stock={product.stock} />
         </div>
       </div>

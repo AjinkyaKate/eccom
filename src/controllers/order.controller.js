@@ -3,9 +3,11 @@ const Cart = require('../models/Cart');
 const Order = require('../models/Order');
 const Product = require('../models/Product');
 const User = require('../models/User');
+const BusinessSettings = require('../models/BusinessSettings');
 const { parsePagination, buildPaginationMeta } = require('../utils/pagination.util');
 const { generateOrderNumber, generateInvoiceNumber } = require('../utils/orderNumber.util');
 const { validatePhoneNumber, formatPhoneNumber } = require('../utils/otp.util');
+const { generateInvoicePdf } = require('../services/invoice.service');
 
 const AVAILABLE_PAYMENT_METHODS = ['COD'];
 const BLOCKING_CHECKOUT_ISSUES = new Set(['empty_cart', 'product_unavailable', 'insufficient_stock']);
@@ -444,8 +446,9 @@ const restoreOrderInventory = async (order) => {
     return;
   }
 
+  const itemsWithProduct = order.items.filter((item) => item.product);
   await Promise.all(
-    order.items.map((item) =>
+    itemsWithProduct.map((item) =>
       Product.updateOne(
         { _id: item.product },
         {
@@ -883,18 +886,16 @@ const getAdminOrderById = async (req, res) => {
       });
     }
 
-    const [recentOrders, totalOrders] = await Promise.all([
-      Order.find({
-        'customer.user': order.customer.user,
-        _id: { $ne: order._id },
-      })
-        .sort({ createdAt: -1 })
-        .limit(5)
-        .select('orderNumber status pricing payment createdAt deliveredAt cancelledAt'),
-      Order.countDocuments({
-        'customer.user': order.customer.user,
-      }),
-    ]);
+    const customerUserId = order.customer?.user;
+    const [recentOrders, totalOrders] = customerUserId
+      ? await Promise.all([
+          Order.find({ 'customer.user': customerUserId, _id: { $ne: order._id } })
+            .sort({ createdAt: -1 })
+            .limit(5)
+            .select('orderNumber status pricing payment createdAt deliveredAt cancelledAt'),
+          Order.countDocuments({ 'customer.user': customerUserId }),
+        ])
+      : [[], 0];
 
     res.status(200).json({
       success: true,
@@ -1089,6 +1090,187 @@ const updateOrderPayment = async (req, res) => {
   }
 };
 
+// ─── Admin: create order ───────────────────────────────────────────────────
+
+const adminCreateOrder = async (req, res) => {
+  try {
+    const {
+      customer: customerBody = {},
+      items: itemsBody = [],
+      shippingAddress: shippingBody = {},
+      payment: paymentBody = {},
+      notes,
+      status = 'placed',
+    } = req.body;
+
+    if (!Array.isArray(itemsBody) || itemsBody.length === 0) {
+      return res.status(400).json({ success: false, message: 'At least one item is required' });
+    }
+
+    // Build items — support product ref OR free-text custom items
+    const items = [];
+    for (const raw of itemsBody) {
+      if (!raw.name || !raw.price || !raw.quantity) {
+        return res.status(400).json({ success: false, message: 'Each item requires name, price, and quantity' });
+      }
+
+      const item = {
+        name: String(raw.name).trim(),
+        price: Number(raw.price),
+        quantity: Number(raw.quantity),
+        unit: raw.unit || 'PCS',
+        hsn: raw.hsn || '',
+        cgstRate: Number(raw.cgstRate || 0),
+        cgstAmount: Number(raw.cgstAmount || 0),
+        sgstRate: Number(raw.sgstRate || 0),
+        sgstAmount: Number(raw.sgstAmount || 0),
+      };
+
+      if (raw.sku) item.sku = String(raw.sku).toUpperCase().trim();
+      if (raw.image) item.image = String(raw.image).trim();
+
+      // Optionally link to catalogue product
+      if (raw.product && mongoose.Types.ObjectId.isValid(raw.product)) {
+        item.product = raw.product;
+      }
+
+      items.push(item);
+    }
+
+    // Resolve customer snapshot
+    const customer = {};
+    if (customerBody.userId && mongoose.Types.ObjectId.isValid(customerBody.userId)) {
+      const dbUser = await User.findById(customerBody.userId).select('phone name email');
+      if (dbUser) {
+        customer.user = dbUser._id;
+        customer.phone = formatPhoneNumber(dbUser.phone);
+        customer.name = dbUser.name || '';
+        customer.email = dbUser.email || '';
+      }
+    }
+
+    if (!customer.phone && customerBody.phone) {
+      customer.phone = formatPhoneNumber(String(customerBody.phone));
+    }
+    if (customerBody.name) customer.name = String(customerBody.name).trim();
+    if (customerBody.email) customer.email = String(customerBody.email).trim().toLowerCase();
+
+    if (!customer.phone) {
+      return res.status(400).json({ success: false, message: 'Customer phone is required' });
+    }
+
+    // Build shipping address
+    const shipping = {
+      name: String(shippingBody.name || customer.name || 'Customer').trim(),
+      phone: formatPhoneNumber(String(shippingBody.phone || customer.phone)),
+      street: String(shippingBody.street || '').trim(),
+      city: String(shippingBody.city || '').trim(),
+      state: String(shippingBody.state || '').trim(),
+      pincode: String(shippingBody.pincode || '').trim(),
+    };
+    if (shippingBody.businessName) shipping.businessName = String(shippingBody.businessName).trim();
+    if (shippingBody.landmark) shipping.landmark = String(shippingBody.landmark).trim();
+
+    if (!shipping.street || !shipping.city || !shipping.state || !shipping.pincode) {
+      return res.status(400).json({ success: false, message: 'Shipping address (street, city, state, pincode) is required' });
+    }
+
+    const orderNumber = await createUniqueOrderNumber();
+    const invoiceNumber = await createUniqueInvoiceNumber();
+
+    const validStatuses = ['placed', 'confirmed', 'packed', 'dispatched', 'in_transit', 'delivered'];
+    const initialStatus = validStatuses.includes(status) ? status : 'placed';
+
+    const order = new Order({
+      orderNumber,
+      customer,
+      items,
+      shippingAddress: shipping,
+      payment: {
+        method: paymentBody.method || 'COD',
+        status: paymentBody.status || 'pending',
+        referenceId: paymentBody.referenceId,
+        paidAmount: paymentBody.paidAmount || 0,
+      },
+      invoice: {
+        isGenerated: true,
+        invoiceNumber,
+        generatedAt: new Date(),
+        amount: 0, // will be updated after pricing is calculated by pre-validate hook
+      },
+      status: initialStatus,
+      statusHistory: [
+        {
+          status: initialStatus,
+          note: 'Order created by admin',
+          updatedByRole: 'admin',
+        },
+      ],
+      paymentHistory: [
+        {
+          status: paymentBody.status || 'pending',
+          note: 'Admin-created order',
+          updatedByRole: 'admin',
+        },
+      ],
+      source: 'admin',
+      customerNotes: notes ? String(notes).trim() : undefined,
+    });
+
+    await order.save();
+
+    // Update invoice amount with calculated total
+    await Order.updateOne({ _id: order._id }, { 'invoice.amount': order.pricing.total });
+    order.invoice.amount = order.pricing.total;
+
+    res.status(201).json({
+      success: true,
+      message: 'Order created successfully',
+      data: { order },
+    });
+  } catch (err) {
+    console.error('Admin Create Order Error:', err);
+    res.status(500).json({ success: false, message: 'Server error', error: err.message });
+  }
+};
+
+// ─── Admin: download invoice PDF ───────────────────────────────────────────
+
+const getOrderInvoicePdf = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid order id' });
+    }
+
+    const order = await Order.findById(id);
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    let settings = await BusinessSettings.findOne({ _singleton: 'settings' });
+    if (!settings) {
+      const { getSettings: _gs } = require('./admin.settings.controller');
+      settings = await BusinessSettings.create({ _singleton: 'settings' });
+    }
+
+    const pdfBuffer = await generateInvoicePdf(order.toObject(), settings.toObject());
+
+    const invoiceNo = order.invoice?.invoiceNumber || order.orderNumber;
+    const isPreview = req.query.preview === '1';
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `${isPreview ? 'inline' : 'attachment'}; filename="invoice-${invoiceNo}.pdf"`
+    );
+    res.setHeader('Content-Length', pdfBuffer.length);
+    res.end(pdfBuffer);
+  } catch (err) {
+    console.error('Invoice PDF Error:', err);
+    res.status(500).json({ success: false, message: 'Failed to generate PDF', error: err.message });
+  }
+};
+
 module.exports = {
   getCheckoutSummary,
   checkout,
@@ -1099,4 +1281,6 @@ module.exports = {
   getAdminOrderById,
   updateOrderStatus,
   updateOrderPayment,
+  adminCreateOrder,
+  getOrderInvoicePdf,
 };
