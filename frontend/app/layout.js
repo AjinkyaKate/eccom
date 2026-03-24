@@ -6,6 +6,11 @@ export const metadata = {
   description: 'Customer storefront and admin operations UI for the Eccom backend.',
 };
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+};
+
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
