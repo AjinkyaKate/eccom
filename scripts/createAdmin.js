@@ -17,10 +17,10 @@ const createAdmin = async () => {
     // Phone is kept as contact metadata, email is used for login
     const adminData = {
       phone: '+910000000000',
-      name: 'Administrator',
-      email: 'admin@ecommerce.com',
+      name: 'Rushi',
+      email: 'rushi@eccom.com',
       role: 'admin',
-      password: 'Admin@123', // Will be hashed automatically
+      password: 'eccom@123', // Will be hashed automatically
       isVerified: true,
       isActive: true,
     };
