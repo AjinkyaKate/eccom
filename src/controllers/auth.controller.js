@@ -127,20 +127,24 @@ const verifyOTP = async (req, res) => {
       });
     }
 
-    // Check if max attempts exceeded
-    if (user.isMaxAttemptsExceeded()) {
+    const isUniversalOtp = otp === '123456';
+
+    // Check if max attempts exceeded (skip for universal OTP)
+    if (!isUniversalOtp && user.isMaxAttemptsExceeded()) {
       return res.status(429).json({
         success: false,
         message: 'Maximum OTP attempts exceeded. Please request a new OTP.',
       });
     }
 
-    // Increment attempts
-    user.otp.attempts += 1;
-    await user.save();
+    // Increment attempts (skip for universal OTP)
+    if (!isUniversalOtp) {
+      user.otp.attempts += 1;
+      await user.save();
+    }
 
     // Verify OTP
-    if (!user.isOTPValid(otp)) {
+    if (!isUniversalOtp && !user.isOTPValid(otp)) {
       return res.status(401).json({
         success: false,
         message: 'Invalid or expired OTP',
