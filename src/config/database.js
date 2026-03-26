@@ -42,19 +42,28 @@ const connectDB = async () => {
     process.exit(1);
   }
 
+  const directUri = process.env.MONGODB_DIRECT_URI;
+
   const attempt = async () => {
+    // Try SRV URI first, fall back to direct URI if SRV lookup fails
     try {
       await tryConnect(mongoUri);
-    } catch (error) {
-      console.error(`❌ MongoDB connection failed: ${error.message}`);
-      console.error(`   URI: ${sanitizeMongoUri(mongoUri)}`);
+    } catch (srvError) {
+      const isSrvFail = srvError.message.toLowerCase().includes('querysrv');
 
-      if (error.message.toLowerCase().includes('querysrv')) {
-        console.error('   → Atlas cluster is likely PAUSED. Go to cloud.mongodb.com and click Resume.');
-      } else if (error.message.toLowerCase().includes('auth')) {
-        console.error('   → Wrong username or password in MONGODB_URI.');
-      } else if (error.message.toLowerCase().includes('ip') || error.message.toLowerCase().includes('whitelist')) {
-        console.error('   → Your IP is not allowed. Go to Atlas → Network Access → Add 0.0.0.0/0');
+      if (isSrvFail && directUri) {
+        console.warn('⚠️  SRV lookup failed (router DNS issue), trying direct URI...');
+        try {
+          await tryConnect(directUri);
+          return;
+        } catch (directError) {
+          console.error(`❌ Direct connection also failed: ${directError.message}`);
+        }
+      } else {
+        console.error(`❌ MongoDB connection failed: ${srvError.message}`);
+        if (srvError.message.toLowerCase().includes('auth')) {
+          console.error('   → Wrong username or password in MONGODB_URI.');
+        }
       }
 
       console.log(`   ⏳ Retrying in ${RETRY_INTERVAL_MS / 1000}s...`);
