@@ -2,8 +2,8 @@ import StoreShell from '@/components/StoreShell';
 import './globals.css';
 
 export const metadata = {
-  title: 'Eccom Wholesale',
-  description: 'Customer storefront and admin operations UI for the Eccom backend.',
+  title: 'Rajmangal Wholesale',
+  description: 'Rajmangal Wholesale — your trusted wholesale store.',
 };
 
 export const viewport = {

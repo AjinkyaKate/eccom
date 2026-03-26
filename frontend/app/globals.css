@@ -6,8 +6,8 @@
 
 :root {
   color-scheme: light;
-  --page-top: #fff8f3;
-  --page-bottom: #ffeedd;
+  --page-top: #f8f5ff;
+  --page-bottom: #efe8ff;
 }
 
 html {
@@ -17,9 +17,9 @@ html {
 body {
   min-height: 100vh;
   font-family: "Josefin Sans", ui-sans-serif, system-ui, sans-serif;
-  color: #1A0800;
+  color: #241348;
   background:
-    radial-gradient(circle at top left, rgba(240, 120, 32, 0.12), transparent 32rem),
+    radial-gradient(circle at top left, rgba(221, 214, 254, 0.5), transparent 32rem),
     linear-gradient(180deg, var(--page-top) 0%, #ffffff 26rem, var(--page-bottom) 100%);
 }
 
@@ -39,8 +39,8 @@ a {
 
 .grid-pattern {
   background-image:
-    linear-gradient(rgba(240, 120, 32, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(240, 120, 32, 0.045) 1px, transparent 1px);
+    linear-gradient(rgba(91, 33, 182, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(91, 33, 182, 0.045) 1px, transparent 1px);
   background-size: 2rem 2rem;
 }
 

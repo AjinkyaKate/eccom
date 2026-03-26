@@ -27,7 +27,7 @@ export async function generateMetadata({ params }) {
   const { product } = await loadProduct(slug);
 
   return {
-    title: product ? `${product.name} | Eccom Wholesale` : 'Product | Eccom Wholesale',
+    title: product ? `${product.name} | Rajmangal Wholesale` : 'Product | Rajmangal Wholesale',
   };
 }
 

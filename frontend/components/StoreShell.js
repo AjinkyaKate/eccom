@@ -8,7 +8,7 @@ function SiteFooter() {
   return (
     <footer className="border-t border-palette-light/70 bg-white/80">
       <div className="mx-auto flex max-w-shell flex-col gap-2 px-6 py-6 text-sm text-palette-dark/80 md:flex-row md:items-center md:justify-between">
-        <p>Eccom Wholesale</p>
+        <p>Rajmangal Wholesale</p>
       </div>
     </footer>
   );

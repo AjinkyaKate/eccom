@@ -9,19 +9,19 @@ module.exports = {
     extend: {
       colors: {
         palette: {
-          lighter: '#FFF4EC',
-          light:   '#FDDCBC',
-          primary: '#F07820',
-          dark:    '#C45E10',
-          ink:     '#1A0800',
-          mist:    '#FFFAF6',
+          lighter: '#F5F3FF',
+          light: '#DDD6FE',
+          primary: '#5B21B6',
+          dark: '#4C1D95',
+          ink: '#241348',
+          mist: '#FBFAFF',
         },
       },
       fontFamily: {
         primary: ['"Josefin Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
-        panel: '0 18px 50px -28px rgba(196, 94, 16, 0.28)',
+        panel: '0 18px 50px -28px rgba(76, 29, 149, 0.32)',
       },
       maxWidth: {
         shell: '74rem',
