@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { apiFetch, getErrorMessage } from '@/lib/api';
 import { CUSTOMER_TOKEN_KEY } from '@/lib/session';
 
-export default function AddToCartPanel({ productId, stock }) {
+export default function AddToCartPanel({ productId }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [quantity, setQuantity] = useState(1);
@@ -75,18 +75,17 @@ export default function AddToCartPanel({ productId, stock }) {
         <input
           type="number"
           min="1"
-          max={stock || 1}
           value={quantity}
           onChange={(e) => setQuantity(Math.max(1, Number(e.target.value || 1)))}
           className="w-28 rounded-2xl border border-palette-light bg-palette-mist px-4 py-3 text-base text-palette-dark outline-none transition focus:border-palette-primary"
         />
         <button
           type="button"
-          disabled={isSubmitting || stock <= 0}
+          disabled={isSubmitting}
           onClick={handleAddToCart}
           className="rounded-full bg-palette-primary px-6 py-3 text-sm font-semibold text-white transition hover:bg-palette-dark disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {stock <= 0 ? 'Out of stock' : isSubmitting ? 'Adding...' : 'Add to cart'}
+          {isSubmitting ? 'Adding...' : 'Add to cart'}
         </button>
       </div>
 

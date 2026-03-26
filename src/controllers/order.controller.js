@@ -10,7 +10,7 @@ const { validatePhoneNumber, formatPhoneNumber } = require('../utils/otp.util');
 const { generateInvoicePdf } = require('../services/invoice.service');
 
 const AVAILABLE_PAYMENT_METHODS = ['COD'];
-const BLOCKING_CHECKOUT_ISSUES = new Set(['empty_cart', 'product_unavailable', 'insufficient_stock']);
+const BLOCKING_CHECKOUT_ISSUES = new Set(['empty_cart', 'product_unavailable']);
 
 const ORDER_STATUS_TRANSITIONS = {
   placed: ['confirmed', 'cancelled'],
@@ -231,15 +231,6 @@ const loadCheckoutContext = async (userId) => {
       });
     }
 
-    if (item.quantity > item.product.stock) {
-      issues.push({
-        code: 'insufficient_stock',
-        itemId: item._id,
-        productId: item.product._id,
-        message: `${item.product.name} has only ${item.product.stock} units in stock`,
-      });
-    }
-
     items.push(itemData);
   });
 
@@ -298,25 +289,11 @@ const createUniqueInvoiceNumber = async () => {
 const buildOrderWriteOperations = async ({ order, cart, checkoutItems }) => {
   const applyInventoryUpdate = async (session = null) => {
     for (const item of checkoutItems) {
-      const query = {
-        _id: item.productId,
-        isActive: true,
-        stock: { $gte: item.quantity },
-      };
-
-      const update = {
-        $inc: {
-          stock: -item.quantity,
-          soldCount: item.quantity,
-        },
-      };
-
-      const result = session
-        ? await Product.updateOne(query, update, { session })
-        : await Product.updateOne(query, update);
-
-      if (result.modifiedCount !== 1) {
-        throw new Error(`Insufficient stock for ${item.name}`);
+      const update = { $inc: { soldCount: item.quantity } };
+      if (session) {
+        await Product.updateOne({ _id: item.productId }, update, { session });
+      } else {
+        await Product.updateOne({ _id: item.productId }, update);
       }
     }
   };
@@ -337,53 +314,10 @@ const buildOrderWriteOperations = async ({ order, cart, checkoutItems }) => {
   };
 
   const runWithoutTransaction = async () => {
-    const completedUpdates = [];
-
-    try {
-      for (const item of checkoutItems) {
-        const result = await Product.updateOne(
-          {
-            _id: item.productId,
-            isActive: true,
-            stock: { $gte: item.quantity },
-          },
-          {
-            $inc: {
-              stock: -item.quantity,
-              soldCount: item.quantity,
-            },
-          }
-        );
-
-        if (result.modifiedCount !== 1) {
-          throw new Error(`Insufficient stock for ${item.name}`);
-        }
-
-        completedUpdates.push(item);
-      }
-
-      await order.save();
-      cart.items = [];
-      await cart.save();
-    } catch (error) {
-      if (completedUpdates.length > 0) {
-        await Promise.all(
-          completedUpdates.map((item) =>
-            Product.updateOne(
-              { _id: item.productId },
-              {
-                $inc: {
-                  stock: item.quantity,
-                  soldCount: -item.quantity,
-                },
-              }
-            )
-          )
-        );
-      }
-
-      throw error;
-    }
+    await applyInventoryUpdate();
+    await order.save();
+    cart.items = [];
+    await cart.save();
   };
 
   try {
@@ -449,15 +383,7 @@ const restoreOrderInventory = async (order) => {
   const itemsWithProduct = order.items.filter((item) => item.product);
   await Promise.all(
     itemsWithProduct.map((item) =>
-      Product.updateOne(
-        { _id: item.product },
-        {
-          $inc: {
-            stock: item.quantity,
-            soldCount: -item.quantity,
-          },
-        }
-      )
+      Product.updateOne({ _id: item.product }, { $inc: { soldCount: -item.quantity } })
     )
   );
 
@@ -609,13 +535,6 @@ const checkout = async (req, res) => {
     });
   } catch (error) {
     console.error('Checkout Error:', error);
-
-    if (error.message.startsWith('Insufficient stock for ')) {
-      return res.status(409).json({
-        success: false,
-        message: error.message,
-      });
-    }
 
     res.status(500).json({
       success: false,

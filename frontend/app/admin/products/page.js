@@ -291,57 +291,6 @@ function ProductModal({ product, categories, onClose, onSaved }) {
   );
 }
 
-function StockModal({ product, onClose, onSaved }) {
-  const [qty, setQty] = useState('');
-  const [op, setOp] = useState('add');
-  const [error, setError] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setSaving(true);
-    const token = window.localStorage.getItem('adminToken');
-    try {
-      await apiFetch(`/api/admin/products/${product._id}/stock`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ quantity: Number(qty), operation: op }),
-      });
-      onSaved();
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-      <div className="panel-surface w-full max-w-sm rounded-[2rem] border border-palette-light p-8 shadow-panel">
-        <h2 className="text-xl font-semibold text-palette-dark">Update stock</h2>
-        <p className="mt-1 text-sm text-palette-dark/70">{product.name} — current: {product.stock}</p>
-        <form onSubmit={handleSubmit} className="mt-5 space-y-4">
-          <select value={op} onChange={(e) => setOp(e.target.value)} className="input-field">
-            <option value="add">Add</option>
-            <option value="subtract">Subtract</option>
-            <option value="set">Set to</option>
-          </select>
-          <input required type="number" min="0" value={qty} onChange={(e) => setQty(e.target.value)} className="input-field" placeholder="Quantity" />
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          <div className="flex gap-3">
-            <button type="submit" disabled={saving} className="rounded-full bg-palette-primary px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60">
-              {saving ? 'Saving...' : 'Update'}
-            </button>
-            <button type="button" onClick={onClose} className="rounded-full border border-palette-light px-5 py-2.5 text-sm font-semibold text-palette-dark hover:bg-palette-lighter">
-              Cancel
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState([]);
@@ -353,7 +302,7 @@ export default function AdminProductsPage() {
   const [filterActive, setFilterActive] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  const [modal, setModal] = useState(null); // null | { type: 'product', product? } | { type: 'stock', product }
+  const [modal, setModal] = useState(null); // null | { type: 'product', product? }
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -459,16 +408,15 @@ export default function AdminProductsPage() {
                 <th className="px-6 py-4">Product</th>
                 <th className="px-6 py-4">Category</th>
                 <th className="px-6 py-4">Price</th>
-                <th className="px-6 py-4">Stock</th>
                 <th className="px-6 py-4">Status</th>
                 <th className="px-6 py-4">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-palette-light/70 text-palette-dark">
               {isLoading ? (
-                <tr><td colSpan={6} className="px-6 py-8 text-center text-palette-dark/50">Loading...</td></tr>
+                <tr><td colSpan={5} className="px-6 py-8 text-center text-palette-dark/50">Loading...</td></tr>
               ) : products.length === 0 ? (
-                <tr><td colSpan={6} className="px-6 py-8 text-center text-palette-dark/50">No products found.</td></tr>
+                <tr><td colSpan={5} className="px-6 py-8 text-center text-palette-dark/50">No products found.</td></tr>
               ) : products.map((p) => (
                 <tr key={p._id} className="hover:bg-palette-mist">
                   <td className="px-6 py-4">
@@ -489,17 +437,6 @@ export default function AdminProductsPage() {
                     {p.discountPrice ? (
                       <p className="text-xs text-palette-dark/50 line-through">{formatCurrency(p.price)}</p>
                     ) : null}
-                  </td>
-                  <td className="px-6 py-4">
-                    <button
-                      type="button"
-                      onClick={() => setModal({ type: 'stock', product: p })}
-                      className={`rounded-full border px-3 py-1 text-xs font-semibold transition hover:border-palette-primary hover:text-palette-primary ${
-                        p.stock === 0 ? 'border-red-200 bg-red-50 text-red-700' : 'border-palette-light bg-palette-lighter text-palette-dark'
-                      }`}
-                    >
-                      {p.stock} units
-                    </button>
                   </td>
                   <td className="px-6 py-4">
                     <StatusPill tone={p.isActive ? 'success' : 'soft'}>
@@ -567,14 +504,6 @@ export default function AdminProductsPage() {
           onSaved={() => { setModal(null); load(); }}
         />
       )}
-      {modal?.type === 'stock' && (
-        <StockModal
-          product={modal.product}
-          onClose={() => setModal(null)}
-          onSaved={() => { setModal(null); load(); }}
-        />
-      )}
-
       {/* Delete confirmation */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">

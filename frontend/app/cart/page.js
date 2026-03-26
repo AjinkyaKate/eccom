@@ -76,19 +76,17 @@ export default function CartPage() {
     }
   };
 
-  const updateQuantity = async (itemId, quantity, stock) => {
+  const updateQuantity = async (itemId, quantity) => {
     // Minus on qty=1 → remove the item
     if (quantity < 1) {
       return removeItem(itemId);
     }
-    // Cap at available stock
-    const safeQty = stock > 0 ? Math.min(quantity, stock) : quantity;
     try {
       const token = window.localStorage.getItem(CUSTOMER_TOKEN_KEY);
       await apiFetch(`/api/cart/items/${itemId}`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ quantity: safeQty }),
+        body: JSON.stringify({ quantity }),
       });
       await loadCart();
     } catch (updateError) {
@@ -169,7 +167,7 @@ export default function CartPage() {
                       {item.product.name}
                     </Link>
                     <p className="mt-1 text-sm text-palette-dark/60">
-                      {formatCurrency(item.price)} each • stock {item.product.stock}
+                      {formatCurrency(item.price)} each
                     </p>
                   </div>
                 </div>
@@ -177,7 +175,7 @@ export default function CartPage() {
                   <div className="flex items-center rounded-full border border-palette-light bg-palette-lighter">
                     <button
                       type="button"
-                      onClick={() => updateQuantity(item.id, item.quantity - 1, item.product.stock)}
+                      onClick={() => updateQuantity(item.id, item.quantity - 1)}
                       className="px-4 py-2 text-palette-dark hover:text-red-500 transition"
                       title={item.quantity === 1 ? 'Remove item' : 'Decrease quantity'}
                     >
@@ -186,10 +184,9 @@ export default function CartPage() {
                     <span className="min-w-10 text-center font-semibold">{item.quantity}</span>
                     <button
                       type="button"
-                      onClick={() => updateQuantity(item.id, item.quantity + 1, item.product.stock)}
-                      disabled={item.product.stock > 0 && item.quantity >= item.product.stock}
-                      className="px-4 py-2 text-palette-dark transition disabled:opacity-40"
-                      title={item.product.stock > 0 && item.quantity >= item.product.stock ? 'Max stock reached' : 'Increase quantity'}
+                      onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                      className="px-4 py-2 text-palette-dark transition"
+                      title="Increase quantity"
                     >
                       +
                     </button>

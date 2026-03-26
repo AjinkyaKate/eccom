@@ -124,28 +124,12 @@ const addToCart = async (req, res) => {
       });
     }
 
-    if (product.stock < parsedQuantity) {
-      return res.status(400).json({
-        success: false,
-        message: 'Requested quantity exceeds available stock',
-      });
-    }
-
     const cart = await getOrCreateCart(req.user.userId);
     const existingItem = cart.items.find((item) => item.product.toString() === productId);
     const snapshotPrice = getCurrentProductPrice(product);
 
     if (existingItem) {
-      const updatedQuantity = existingItem.quantity + parsedQuantity;
-
-      if (updatedQuantity > product.stock) {
-        return res.status(400).json({
-          success: false,
-          message: 'Requested quantity exceeds available stock',
-        });
-      }
-
-      existingItem.quantity = updatedQuantity;
+      existingItem.quantity = existingItem.quantity + parsedQuantity;
       existingItem.price = snapshotPrice;
     } else {
       cart.items.push({
@@ -215,13 +199,6 @@ const updateCartItem = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Product not available anymore',
-      });
-    }
-
-    if (parsedQuantity > product.stock) {
-      return res.status(400).json({
-        success: false,
-        message: 'Requested quantity exceeds available stock',
       });
     }
 

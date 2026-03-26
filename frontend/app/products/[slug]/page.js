@@ -63,9 +63,6 @@ export default async function ProductPage({ params }) {
             <Link href="/products" className="text-sm font-semibold text-palette-primary hover:text-palette-dark">
               ← Back to products
             </Link>
-            <StatusPill tone={product.stock > 0 ? 'soft' : 'warn'}>
-              {product.stock > 0 ? `${product.stock} units in stock` : 'Out of stock'}
-            </StatusPill>
             <SectionHeading
               eyebrow={product.category?.name || 'Product'}
               title={product.name}
@@ -89,7 +86,7 @@ export default async function ProductPage({ params }) {
             </div>
           )}
           <Suspense fallback={null}>
-            <AddToCartPanel productId={product._id} stock={product.stock} />
+            <AddToCartPanel productId={product._id} />
           </Suspense>
         </div>
       </div>
