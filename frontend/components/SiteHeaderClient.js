@@ -103,9 +103,7 @@ export default function SiteHeaderClient() {
 
         {/* Logo */}
         <Link href="/" className="flex items-center gap-3">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-palette-primary text-sm font-bold text-white">
-            E
-          </span>
+          <img src="/logo.jpeg" alt="Logo" className="h-10 w-10 shrink-0 rounded-full object-contain" />
           <span className="text-base font-semibold tracking-tight text-palette-dark">Eccom Wholesale</span>
         </Link>
 
