@@ -269,7 +269,7 @@ const pickProductPayload = (body = {}) => {
 
 const validateBaseProductPayload = async (payload, { isUpdate = false } = {}) => {
   if (!isUpdate) {
-    const requiredFields = ['name', 'category', 'price', 'stock', 'sku'];
+    const requiredFields = ['name', 'category', 'price'];
     const missingField = requiredFields.find(
       (field) => payload[field] === undefined || payload[field] === null || payload[field] === ''
     );
@@ -447,6 +447,14 @@ const createProduct = async (req, res) => {
         success: false,
         message: validationError,
       });
+    }
+
+    if (!payload.sku) {
+      const base = (payload.name || 'PROD').replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 6);
+      payload.sku = `${base}-${Date.now().toString().slice(-5)}`;
+    }
+    if (payload.stock === undefined || payload.stock === null) {
+      payload.stock = 0;
     }
 
     const product = await Product.create({

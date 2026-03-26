@@ -11,8 +11,6 @@ const EMPTY_FORM = {
   category: '',
   price: '',
   discountPrice: '',
-  stock: '',
-  sku: '',
   shortDescription: '',
   tags: '',
   isFeatured: false,
@@ -53,7 +51,12 @@ function ImageUploader({ images, onChange }) {
         if (!res.ok) throw new Error(data.message || 'Upload failed');
         results.push({ url: data.data.url, publicId: data.data.publicId });
       } catch (err) {
-        setUploadError(err.message || 'Upload failed');
+        const msg = err.message || '';
+        if (msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('network')) {
+          setUploadError('Cannot reach server. Make sure the backend is running and Cloudinary credentials are set in Railway.');
+        } else {
+          setUploadError(msg || 'Upload failed');
+        }
       }
     }
 
@@ -146,8 +149,6 @@ function ProductModal({ product, categories, onClose, onSaved }) {
           category: product.category?._id || product.category || '',
           price: product.price ?? '',
           discountPrice: product.discountPrice ?? '',
-          stock: product.stock ?? '',
-          sku: product.sku || '',
           shortDescription: product.shortDescription || '',
           tags: Array.isArray(product.tags) ? product.tags.join(', ') : '',
           isFeatured: product.isFeatured ?? false,
@@ -175,8 +176,6 @@ function ProductModal({ product, categories, onClose, onSaved }) {
       category: form.category,
       price: Number(form.price),
       discountPrice: form.discountPrice === '' ? null : Number(form.discountPrice),
-      stock: Number(form.stock),
-      sku: form.sku,
       shortDescription: form.shortDescription,
       images: imageUrls,
       mainImage: imageUrls[0] || '',
@@ -239,11 +238,6 @@ function ProductModal({ product, categories, onClose, onSaved }) {
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-semibold text-palette-dark">SKU *</label>
-              <input required value={form.sku} onChange={set('sku')} className="input-field" placeholder="e.g. WH-001" />
-            </div>
-
-            <div>
               <label className="mb-1 block text-sm font-semibold text-palette-dark">Price (₹) *</label>
               <input required type="number" min="0" step="0.01" value={form.price} onChange={set('price')} className="input-field" placeholder="0.00" />
             </div>
@@ -251,11 +245,6 @@ function ProductModal({ product, categories, onClose, onSaved }) {
             <div>
               <label className="mb-1 block text-sm font-semibold text-palette-dark">Discount price (₹)</label>
               <input type="number" min="0" step="0.01" value={form.discountPrice} onChange={set('discountPrice')} className="input-field" placeholder="Leave blank for no discount" />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-sm font-semibold text-palette-dark">Stock *</label>
-              <input required type="number" min="0" value={form.stock} onChange={set('stock')} className="input-field" placeholder="0" />
             </div>
 
             <div className="sm:col-span-2">
@@ -491,7 +480,6 @@ export default function AdminProductsPage() {
                       )}
                       <div>
                         <p className="font-semibold">{p.name}</p>
-                        <p className="text-xs text-palette-dark/50">SKU: {p.sku}</p>
                       </div>
                     </div>
                   </td>
