@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import AddToCartPanel from '@/components/AddToCartPanel';
 import SectionHeading from '@/components/SectionHeading';
 import StatusPill from '@/components/StatusPill';
+import ProductImageGallery from '@/components/ProductImageGallery';
 import { apiFetch, getErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
 
@@ -51,15 +52,11 @@ export default async function ProductPage({ params }) {
   return (
     <div className="mx-auto max-w-shell px-6 py-10">
       <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
-        <div className="panel-surface overflow-hidden rounded-[2rem] border border-palette-light/80 shadow-panel">
-          <div className="relative min-h-80 bg-white p-6">
-            <img
-              src={product.mainImage || product.images?.[0] || 'https://placehold.co/800x800?text=Product'}
-              alt={product.name}
-              className="h-full min-h-80 w-full rounded-[1.5rem] object-cover"
-            />
-          </div>
-        </div>
+        <ProductImageGallery
+          images={product.images}
+          mainImage={product.mainImage}
+          name={product.name}
+        />
         <div className="space-y-6">
           <div className="space-y-4">
             <Link href="/products" className="text-sm font-semibold text-palette-primary hover:text-palette-dark">

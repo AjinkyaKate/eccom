@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import SectionHeading from '@/components/SectionHeading';
 import StatusPill from '@/components/StatusPill';
-import { apiFetch, getErrorMessage } from '@/lib/api';
+import { apiFetch, getErrorMessage, getApiBaseUrl } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
 
 const EMPTY_FORM = {
@@ -14,14 +14,131 @@ const EMPTY_FORM = {
   stock: '',
   sku: '',
   shortDescription: '',
-  mainImage: '',
   tags: '',
   isFeatured: false,
   isActive: true,
 };
 
+// images state shape: [{ url, publicId }]
+function buildInitialImages(product) {
+  if (!product) return [];
+  const urls = Array.isArray(product.images) ? product.images : [];
+  const main = product.mainImage;
+  const all = main ? [main, ...urls.filter((u) => u !== main)] : urls;
+  return all.filter(Boolean).map((url) => ({ url, publicId: null }));
+}
+
+function ImageUploader({ images, onChange }) {
+  const fileInputRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+
+  const handleFiles = async (files) => {
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    setUploadError('');
+    const token = window.localStorage.getItem('adminToken');
+    const results = [];
+
+    for (const file of Array.from(files)) {
+      const formData = new FormData();
+      formData.append('file', file);
+      try {
+        const res = await fetch(`${getApiBaseUrl()}/api/admin/upload`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'Upload failed');
+        results.push({ url: data.data.url, publicId: data.data.publicId });
+      } catch (err) {
+        setUploadError(err.message || 'Upload failed');
+      }
+    }
+
+    if (results.length > 0) {
+      onChange([...images, ...results]);
+    }
+    setUploading(false);
+  };
+
+  const handleRemove = async (index) => {
+    const img = images[index];
+    const token = window.localStorage.getItem('adminToken');
+    if (img.publicId) {
+      try {
+        await fetch(`${getApiBaseUrl()}/api/admin/upload`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ publicId: img.publicId }),
+        });
+      } catch (_) {}
+    }
+    onChange(images.filter((_, i) => i !== index));
+  };
+
+  return (
+    <div>
+      <label className="mb-1 block text-sm font-semibold text-palette-dark">
+        Product images {images.length > 0 && <span className="text-palette-dark/50">({images.length} added · first = main)</span>}
+      </label>
+
+      {/* Thumbnails */}
+      {images.length > 0 && (
+        <div className="mb-3 flex flex-wrap gap-3">
+          {images.map((img, i) => (
+            <div key={i} className="relative">
+              <img
+                src={img.url}
+                alt={`image ${i + 1}`}
+                className={`h-20 w-20 rounded-xl object-cover border-2 ${i === 0 ? 'border-palette-primary' : 'border-palette-light'}`}
+              />
+              {i === 0 && (
+                <span className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-full bg-palette-primary px-2 py-0.5 text-[10px] font-bold text-white">
+                  Main
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => handleRemove(i)}
+                className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white hover:bg-red-600"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Upload button */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={(e) => handleFiles(e.target.files)}
+      />
+      <button
+        type="button"
+        onClick={() => fileInputRef.current?.click()}
+        disabled={uploading}
+        className="rounded-full border border-dashed border-palette-primary px-5 py-2 text-sm font-semibold text-palette-primary hover:bg-palette-mist disabled:opacity-60"
+      >
+        {uploading ? 'Uploading...' : '+ Add images'}
+      </button>
+      {uploadError && <p className="mt-1 text-xs text-red-600">{uploadError}</p>}
+    </div>
+  );
+}
+
 function ProductModal({ product, categories, onClose, onSaved }) {
   const isEdit = !!product;
+  const [images, setImages] = useState(buildInitialImages(product));
   const [form, setForm] = useState(
     isEdit
       ? {
@@ -32,7 +149,6 @@ function ProductModal({ product, categories, onClose, onSaved }) {
           stock: product.stock ?? '',
           sku: product.sku || '',
           shortDescription: product.shortDescription || '',
-          mainImage: product.mainImage || '',
           tags: Array.isArray(product.tags) ? product.tags.join(', ') : '',
           isFeatured: product.isFeatured ?? false,
           isActive: product.isActive ?? true,
@@ -53,6 +169,7 @@ function ProductModal({ product, categories, onClose, onSaved }) {
     setSaving(true);
 
     const token = window.localStorage.getItem('adminToken');
+    const imageUrls = images.map((img) => img.url);
     const body = {
       name: form.name,
       category: form.category,
@@ -61,7 +178,8 @@ function ProductModal({ product, categories, onClose, onSaved }) {
       stock: Number(form.stock),
       sku: form.sku,
       shortDescription: form.shortDescription,
-      mainImage: form.mainImage,
+      images: imageUrls,
+      mainImage: imageUrls[0] || '',
       tags: form.tags,
       isFeatured: form.isFeatured,
       isActive: form.isActive,
@@ -140,9 +258,8 @@ function ProductModal({ product, categories, onClose, onSaved }) {
               <input required type="number" min="0" value={form.stock} onChange={set('stock')} className="input-field" placeholder="0" />
             </div>
 
-            <div>
-              <label className="mb-1 block text-sm font-semibold text-palette-dark">Main image URL</label>
-              <input value={form.mainImage} onChange={set('mainImage')} className="input-field" placeholder="https://..." />
+            <div className="sm:col-span-2">
+              <ImageUploader images={images} onChange={setImages} />
             </div>
 
             <div className="sm:col-span-2">

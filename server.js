@@ -42,6 +42,8 @@ app.use('/api/categories', require('./src/routes/category.routes'));
 app.use('/api/products', require('./src/routes/product.routes'));
 app.use('/api/cart', require('./src/routes/cart.routes'));
 app.use('/api/orders', require('./src/routes/order.routes'));
+app.use('/api/addresses', require('./src/routes/address.routes'));
+app.use('/api/admin/upload', require('./src/routes/upload.routes'));
 
 // Health check route
 app.get('/health', (req, res) => {
@@ -117,4 +119,10 @@ app.listen(PORT, () => {
   console.log(`   GET    /api/orders - Get customer orders (protected)`);
   console.log(`   GET    /api/orders/:id - Get customer order detail (protected)`);
   console.log(`   POST   /api/orders/:id/cancel - Cancel customer order (protected)\n`);
+  console.log(`   Addresses:`);
+  console.log(`   GET    /api/addresses - List saved addresses (protected)`);
+  console.log(`   POST   /api/addresses - Add new address (protected)`);
+  console.log(`   PUT    /api/addresses/:id - Update address (protected)`);
+  console.log(`   DELETE /api/addresses/:id - Delete address (protected)`);
+  console.log(`   PATCH  /api/addresses/:id/default - Set default address (protected)\n`);
 });

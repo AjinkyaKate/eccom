@@ -97,6 +97,11 @@ export default function SiteHeaderClient() {
           <Link href="/orders" className="rounded-full px-4 py-2 transition hover:bg-palette-lighter hover:text-palette-primary">
             My Orders
           </Link>
+          {customer && (
+            <Link href="/account/addresses" className="rounded-full px-4 py-2 transition hover:bg-palette-lighter hover:text-palette-primary">
+              Addresses
+            </Link>
+          )}
 
           {/* Search */}
           <div ref={searchRef} className="relative">
@@ -215,6 +220,11 @@ export default function SiteHeaderClient() {
             <Link href="/orders" onClick={() => setMenuOpen(false)} className="rounded-xl px-4 py-3 transition hover:bg-palette-lighter hover:text-palette-primary">
               My Orders
             </Link>
+            {customer && (
+              <Link href="/account/addresses" onClick={() => setMenuOpen(false)} className="rounded-xl px-4 py-3 transition hover:bg-palette-lighter hover:text-palette-primary">
+                Addresses
+              </Link>
+            )}
 
             <div className="my-2 border-t border-palette-light/70" />
 
