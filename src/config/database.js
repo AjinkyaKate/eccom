@@ -1,32 +1,8 @@
 const mongoose = require('mongoose');
 
-const DEFAULT_SERVER_SELECTION_TIMEOUT_MS = 10000;
-const DEFAULT_CONNECT_TIMEOUT_MS = 10000;
+const RETRY_INTERVAL_MS = 5000;
 
 const sanitizeMongoUri = (uri = '') => uri.replace(/\/\/([^:]+):([^@]+)@/, '//$1:<redacted>@');
-const isSrvLookupError = (errorMessage = '') => errorMessage.toLowerCase().includes('querysrv');
-
-const getMongoHint = (errorMessage = '') => {
-  const message = errorMessage.toLowerCase();
-
-  if (message.includes('querysrv econnrefused') || message.includes('querysrv enotfound')) {
-    return 'Check that the Atlas cluster host is correct and the cluster is still active.';
-  }
-
-  if (message.includes('authentication failed') || message.includes('bad auth')) {
-    return 'The database username or password is incorrect, or the DB user does not have access.';
-  }
-
-  if (message.includes('ip') || message.includes('whitelist') || message.includes('not authorized')) {
-    return 'Atlas Network Access may be blocking this machine.';
-  }
-
-  if (message.includes('timed out') || message.includes('server selection')) {
-    return 'The cluster may be paused, unreachable, or blocked by Atlas Network Access rules.';
-  }
-
-  return 'Verify the Atlas cluster is active, the DB user credentials are correct, and Atlas Network Access allows this machine.';
-};
 
 const seedAdmin = async () => {
   try {
@@ -42,58 +18,51 @@ const seedAdmin = async () => {
         isVerified: true,
         isActive: true,
       });
-      console.log('✅ Admin user created: rushi@eccom.com');
+      console.log('✅ Admin user created: rushi@eccom.com / eccom@123');
     }
   } catch (err) {
     console.error('Admin seed error:', err.message);
   }
 };
 
+const tryConnect = async (uri) => {
+  const conn = await mongoose.connect(uri, {
+    serverSelectionTimeoutMS: 8000,
+    connectTimeoutMS: 8000,
+  });
+  console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
+  await seedAdmin();
+};
+
 const connectDB = async () => {
   const mongoUri = process.env.MONGODB_URI;
-  const directMongoUri = process.env.MONGODB_DIRECT_URI;
 
   if (!mongoUri) {
-    console.error('MongoDB Connection Error: MONGODB_URI is not set');
+    console.error('❌ MONGODB_URI is not set in .env');
     process.exit(1);
   }
 
-  const connectOptions = {
-    serverSelectionTimeoutMS:
-      parseInt(process.env.MONGODB_SERVER_SELECTION_TIMEOUT_MS, 10) || DEFAULT_SERVER_SELECTION_TIMEOUT_MS,
-    connectTimeoutMS: parseInt(process.env.MONGODB_CONNECT_TIMEOUT_MS, 10) || DEFAULT_CONNECT_TIMEOUT_MS,
-  };
-
-  const urisToTry = [mongoUri];
-
-  if (directMongoUri) {
-    urisToTry.push(directMongoUri);
-  }
-
-  for (let index = 0; index < urisToTry.length; index += 1) {
-    const uri = urisToTry[index];
-
+  const attempt = async () => {
     try {
-      const conn = await mongoose.connect(uri, connectOptions);
-      console.log(`MongoDB Connected: ${conn.connection.host}`);
-      await seedAdmin();
-      return;
+      await tryConnect(mongoUri);
     } catch (error) {
-      const hasFallback = Boolean(directMongoUri);
-      const shouldTryFallback = index === 0 && hasFallback && isSrvLookupError(error.message);
+      console.error(`❌ MongoDB connection failed: ${error.message}`);
+      console.error(`   URI: ${sanitizeMongoUri(mongoUri)}`);
 
-      console.error(`MongoDB URI: ${sanitizeMongoUri(uri)}`);
-      console.error(`MongoDB Connection Error: ${error.message}`);
-
-      if (shouldTryFallback) {
-        console.error('MongoDB Fallback: Retrying with MONGODB_DIRECT_URI because the SRV lookup failed.');
-        continue;
+      if (error.message.toLowerCase().includes('querysrv')) {
+        console.error('   → Atlas cluster is likely PAUSED. Go to cloud.mongodb.com and click Resume.');
+      } else if (error.message.toLowerCase().includes('auth')) {
+        console.error('   → Wrong username or password in MONGODB_URI.');
+      } else if (error.message.toLowerCase().includes('ip') || error.message.toLowerCase().includes('whitelist')) {
+        console.error('   → Your IP is not allowed. Go to Atlas → Network Access → Add 0.0.0.0/0');
       }
 
-      console.error(`MongoDB Hint: ${getMongoHint(error.message)}`);
-      process.exit(1);
+      console.log(`   ⏳ Retrying in ${RETRY_INTERVAL_MS / 1000}s...`);
+      setTimeout(attempt, RETRY_INTERVAL_MS);
     }
-  }
+  };
+
+  await attempt();
 };
 
 module.exports = connectDB;

@@ -31,6 +31,18 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Block API calls until MongoDB is ready
+const mongoose = require('mongoose');
+app.use('/api', (req, res, next) => {
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({
+      success: false,
+      message: 'Database not connected yet. The server is retrying — please wait a few seconds and try again.',
+    });
+  }
+  next();
+});
+
 // Routes
 app.use('/api/auth', require('./src/routes/auth.routes'));
 app.use('/api/admin', require('./src/routes/admin.routes'));
