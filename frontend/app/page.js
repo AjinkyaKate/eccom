@@ -1,13 +1,14 @@
 import Link from 'next/link';
 import ProductCard from '@/components/ProductCard';
 import SectionHeading from '@/components/SectionHeading';
+import HeroCta from '@/components/HeroCta';
 import { apiFetch, getErrorMessage } from '@/lib/api';
 
 async function loadStorefrontData() {
   try {
     const [categoryResponse, productResponse] = await Promise.all([
-      apiFetch('/api/categories'),
-      apiFetch('/api/products?limit=8&featured=true'),
+      apiFetch('/api/categories',                       { next: { revalidate: 60 } }),
+      apiFetch('/api/products?limit=8&featured=true',   { next: { revalidate: 60 } }),
     ]);
 
     return {
@@ -47,12 +48,7 @@ export default async function HomePage() {
               >
                 Browse all products
               </Link>
-              <Link
-                href="/login"
-                className="rounded-full border border-palette-light px-6 py-3 text-sm font-semibold text-palette-dark transition hover:bg-palette-lighter"
-              >
-                Login / Sign up
-              </Link>
+              <HeroCta />
             </div>
           </div>
 

@@ -6,21 +6,32 @@ import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api';
 import { CUSTOMER_TOKEN_KEY } from '@/lib/session';
 
+// Read cached customer synchronously so header renders with correct state instantly
+function readCachedCustomer() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem('customerProfile');
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
 export default function SiteHeaderClient() {
   const router = useRouter();
-  const [customer, setCustomer] = useState(null);
+  const [customer, setCustomer] = useState(readCachedCustomer);
+  const [authReady, setAuthReady] = useState(() => !!readCachedCustomer()); // skip skeleton if cached
   const [cartCount, setCartCount] = useState(0);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQ, setSearchQ] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const searchRef = useRef(null);
 
-  // Extracted so it can be called on mount AND on auth:updated event
   const loadSession = async () => {
     const token = window.localStorage.getItem(CUSTOMER_TOKEN_KEY);
     if (!token) {
+      window.localStorage.removeItem('customerProfile');
       setCustomer(null);
       setCartCount(0);
+      setAuthReady(true);
       return;
     }
     try {
@@ -29,12 +40,18 @@ export default function SiteHeaderClient() {
         apiFetch('/api/auth/me', { headers }),
         apiFetch('/api/cart', { headers }),
       ]);
-      setCustomer(profileResponse?.data?.user || null);
+      const user = profileResponse?.data?.user || null;
+      // Cache for instant render on next visit
+      if (user) window.localStorage.setItem('customerProfile', JSON.stringify(user));
+      setCustomer(user);
       setCartCount(cartResponse?.data?.cart?.totalItems || 0);
     } catch {
       window.localStorage.removeItem(CUSTOMER_TOKEN_KEY);
+      window.localStorage.removeItem('customerProfile');
       setCustomer(null);
       setCartCount(0);
+    } finally {
+      setAuthReady(true);
     }
   };
 
@@ -88,6 +105,7 @@ export default function SiteHeaderClient() {
 
   const handleLogout = () => {
     window.localStorage.removeItem(CUSTOMER_TOKEN_KEY);
+    window.localStorage.removeItem('customerProfile');
     sessionStorage.removeItem('pendingCartAdd');
     setCustomer(null);
     setCartCount(0);
@@ -112,8 +130,8 @@ export default function SiteHeaderClient() {
       <div className="mx-auto flex max-w-shell items-center justify-between gap-4 px-6 py-4">
 
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-3">
-          <img src="/logo.jpeg" alt="Logo" className="h-10 w-10 shrink-0 rounded-full object-contain" />
+        <Link href="/" className="flex items-center gap-2">
+          <img src="/logo.jpeg" alt="Logo" className="h-12 w-12 shrink-0 rounded-full object-contain" />
           <span className="text-base font-semibold tracking-tight text-palette-dark">Rajmangal Wholesale</span>
         </Link>
 
@@ -171,8 +189,10 @@ export default function SiteHeaderClient() {
             )}
           </div>
 
-          {/* Auth */}
-          {customer ? (
+          {/* Auth — skeleton while loading to avoid Login flash */}
+          {!authReady ? (
+            <div className="h-9 w-20 animate-pulse rounded-full bg-palette-light/60" />
+          ) : customer ? (
             <>
               <span className="rounded-full border border-palette-light px-4 py-2 text-palette-dark/70">
                 {customer.name || customer.phone}
@@ -266,7 +286,9 @@ export default function SiteHeaderClient() {
 
             <div className="my-2 border-t border-palette-light/70" />
 
-            {customer ? (
+            {!authReady ? (
+              <div className="h-10 w-full animate-pulse rounded-xl bg-palette-light/60" />
+            ) : customer ? (
               <>
                 <span className="px-4 py-2 text-palette-dark/60 text-sm">
                   {customer.name || customer.phone}

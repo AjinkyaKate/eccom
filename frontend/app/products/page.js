@@ -53,10 +53,16 @@ function ProductsPage() {
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [page, setPage] = useState(1);
 
-  // Load categories once
+  // Load categories once — cache in sessionStorage so it's instant on repeat visits
   useEffect(() => {
-    apiFetch('/api/categories')
-      .then((res) => setCategories(res?.data?.categories || []))
+    const cached = sessionStorage.getItem('_cats');
+    if (cached) { try { setCategories(JSON.parse(cached)); } catch {} }
+    apiFetch('/api/categories', { next: { revalidate: 60 } })
+      .then((res) => {
+        const cats = res?.data?.categories || [];
+        setCategories(cats);
+        sessionStorage.setItem('_cats', JSON.stringify(cats));
+      })
       .catch(() => {});
   }, []);
 
