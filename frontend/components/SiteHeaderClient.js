@@ -49,10 +49,18 @@ export default function SiteHeaderClient() {
     return () => { isMounted = false; };
   }, []);
 
-  // Update cart count instantly when item is added from product page
+  // Update cart badge instantly from any page
   useEffect(() => {
-    window.addEventListener('cart:updated', refreshCartCount);
-    return () => window.removeEventListener('cart:updated', refreshCartCount);
+    const handler = (e) => {
+      if (e.detail?.totalItems !== undefined) {
+        // Count provided directly — no extra API call needed
+        setCartCount(e.detail.totalItems);
+      } else {
+        refreshCartCount();
+      }
+    };
+    window.addEventListener('cart:updated', handler);
+    return () => window.removeEventListener('cart:updated', handler);
   }, []);
 
   // Close search dropdown on outside click

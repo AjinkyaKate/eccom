@@ -23,12 +23,14 @@ export default function CartPage() {
     }
 
     const response = await apiFetch('/api/cart', {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { Authorization: `Bearer ${token}` },
     });
 
-    setCart(response?.data?.cart || { items: [], subtotal: 0, totalItems: 0 });
+    const cartData = response?.data?.cart || { items: [], subtotal: 0, totalItems: 0 };
+    setCart(cartData);
+    // Keep navbar badge in sync — no extra API call needed
+    window.dispatchEvent(new CustomEvent('cart:updated', { detail: { totalItems: cartData.totalItems } }));
+    return cartData;
   };
 
   useEffect(() => {
@@ -61,52 +63,46 @@ export default function CartPage() {
     };
   }, []);
 
-  const updateQuantity = async (itemId, quantity) => {
-    try {
-      const token = window.localStorage.getItem(CUSTOMER_TOKEN_KEY);
-
-      await apiFetch(`/api/cart/items/${itemId}`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ quantity }),
-      });
-
-      await loadCart();
-    } catch (updateError) {
-      setError(getErrorMessage(updateError));
-    }
-  };
-
   const removeItem = async (itemId) => {
     try {
       const token = window.localStorage.getItem(CUSTOMER_TOKEN_KEY);
-
       await apiFetch(`/api/cart/items/${itemId}`, {
         method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
-
       await loadCart();
     } catch (removeError) {
       setError(getErrorMessage(removeError));
     }
   };
 
+  const updateQuantity = async (itemId, quantity, stock) => {
+    // Minus on qty=1 → remove the item
+    if (quantity < 1) {
+      return removeItem(itemId);
+    }
+    // Cap at available stock
+    const safeQty = stock > 0 ? Math.min(quantity, stock) : quantity;
+    try {
+      const token = window.localStorage.getItem(CUSTOMER_TOKEN_KEY);
+      await apiFetch(`/api/cart/items/${itemId}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ quantity: safeQty }),
+      });
+      await loadCart();
+    } catch (updateError) {
+      setError(getErrorMessage(updateError));
+    }
+  };
+
   const clearCart = async () => {
     try {
       const token = window.localStorage.getItem(CUSTOMER_TOKEN_KEY);
-
       await apiFetch('/api/cart', {
         method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
-
       await loadCart();
     } catch (clearError) {
       setError(getErrorMessage(clearError));
@@ -181,16 +177,19 @@ export default function CartPage() {
                   <div className="flex items-center rounded-full border border-palette-light bg-palette-lighter">
                     <button
                       type="button"
-                      onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))}
-                      className="px-4 py-2 text-palette-dark"
+                      onClick={() => updateQuantity(item.id, item.quantity - 1, item.product.stock)}
+                      className="px-4 py-2 text-palette-dark hover:text-red-500 transition"
+                      title={item.quantity === 1 ? 'Remove item' : 'Decrease quantity'}
                     >
                       −
                     </button>
                     <span className="min-w-10 text-center font-semibold">{item.quantity}</span>
                     <button
                       type="button"
-                      onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                      className="px-4 py-2 text-palette-dark"
+                      onClick={() => updateQuantity(item.id, item.quantity + 1, item.product.stock)}
+                      disabled={item.product.stock > 0 && item.quantity >= item.product.stock}
+                      className="px-4 py-2 text-palette-dark transition disabled:opacity-40"
+                      title={item.product.stock > 0 && item.quantity >= item.product.stock ? 'Max stock reached' : 'Increase quantity'}
                     >
                       +
                     </button>
