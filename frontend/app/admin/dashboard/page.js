@@ -65,22 +65,18 @@ export default function AdminDashboardPage() {
         <MetricCard
           label="Total orders"
           value={isLoading ? '...' : stats?.overview?.totalOrders ?? 0}
-          help="All orders currently stored in MongoDB."
         />
         <MetricCard
           label="Pending payments"
           value={isLoading ? '...' : stats?.overview?.pendingPayments ?? 0}
-          help="Orders still waiting for manual payment confirmation."
         />
         <MetricCard
           label="Today revenue"
           value={isLoading ? '...' : formatCurrency(stats?.today?.revenue ?? 0)}
-          help="Revenue summary from the dashboard aggregate."
         />
         <MetricCard
           label="Customers"
           value={isLoading ? '...' : stats?.overview?.totalCustomers ?? 0}
-          help="Customer accounts currently saved in the users collection."
         />
       </section>
 
@@ -88,7 +84,6 @@ export default function AdminDashboardPage() {
         <SectionHeading
           eyebrow="Live status"
           title="Order flow overview"
-          description="These counts come straight from the dashboard stats API and make it easy to spot where operations are stacking up."
         />
         <div className="mt-6 flex flex-wrap gap-3">
           {Object.entries(stats?.ordersByStatus || {}).map(([status, count]) => (
@@ -106,7 +101,6 @@ export default function AdminDashboardPage() {
         <SectionHeading
           eyebrow="Recent"
           title="Latest order activity"
-          description="This table uses GET /api/admin/orders, which means it mirrors exactly what the admin panel will see after a customer places a new order."
         />
         <div className="mt-6 overflow-x-auto">
           <table className="min-w-full divide-y divide-palette-light text-left">

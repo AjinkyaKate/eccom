@@ -40,7 +40,6 @@ const FIELD_GROUPS = [
   },
   {
     title: 'Bill / Invoice Customization',
-    description: 'These details appear on every generated invoice PDF.',
     fields: [
       { key: 'invoicePrefix', label: 'Invoice Number Prefix', placeholder: 'INV' },
       { key: 'defaultCgstRate', label: 'Default CGST %', type: 'number', placeholder: '0' },
@@ -143,8 +142,7 @@ export default function AdminSettingsPage() {
 
         {/* Terms & Conditions */}
         <div className="panel-surface rounded-[2rem] border border-palette-light/80 px-8 py-6 shadow-panel">
-          <h3 className="mb-2 text-base font-semibold text-palette-dark">Terms & Conditions</h3>
-          <p className="mb-3 text-xs text-palette-dark/50">Enter one term per line. These appear on the invoice.</p>
+          <h3 className="mb-4 text-base font-semibold text-palette-dark">Terms & Conditions</h3>
           <textarea
             rows={5}
             value={termsText}

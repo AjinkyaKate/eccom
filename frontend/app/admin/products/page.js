@@ -53,7 +53,7 @@ function ImageUploader({ images, onChange }) {
       } catch (err) {
         const msg = err.message || '';
         if (msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('network')) {
-          setUploadError('Cannot reach server. Make sure the backend is running and Cloudinary credentials are set in Railway.');
+          setUploadError('Cannot reach server. Please check your internet connection and try again.');
         } else {
           setUploadError(msg || 'Upload failed');
         }

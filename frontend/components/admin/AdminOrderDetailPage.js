@@ -196,7 +196,6 @@ export default function AdminOrderDetailPage({ orderId }) {
           <SectionHeading
             eyebrow="Order detail"
             title={order?.orderNumber || 'Order'}
-            description="This page fetches one order document and lets the admin update order and payment state using the real backend rules."
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">
