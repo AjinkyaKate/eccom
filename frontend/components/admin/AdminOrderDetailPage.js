@@ -29,6 +29,11 @@ export default function AdminOrderDetailPage({ orderId }) {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    setIsMobile(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth < 768);
+  }, []);
 
   const fetchInvoiceBlob = async (preview = false) => {
     const token = window.localStorage.getItem('adminToken');
@@ -446,45 +451,116 @@ export default function AdminOrderDetailPage({ orderId }) {
       {/* ── Invoice preview modal ── */}
       {isPreviewOpen && (
         <div
-          className="fixed inset-0 z-50 flex flex-col bg-black/60"
+          className="fixed inset-0 z-50 flex flex-col bg-black/70"
           onClick={closePreview}
         >
-          {/* Modal toolbar */}
+          {/* Toolbar */}
           <div
-            className="flex shrink-0 items-center justify-between bg-white px-6 py-3 shadow-md"
+            className="flex shrink-0 items-center justify-between bg-white px-4 py-3 shadow-md sm:px-6"
             onClick={(e) => e.stopPropagation()}
           >
             <div>
-              <p className="text-sm font-semibold text-palette-dark">
-                Invoice Preview
-              </p>
+              <p className="text-sm font-semibold text-palette-dark">Invoice Preview</p>
               <p className="text-xs text-palette-dark/50">
                 {order.invoice?.invoiceNumber || order.orderNumber}
               </p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               <button
                 onClick={handleDownload}
-                className="rounded-full bg-palette-primary px-5 py-2 text-xs font-semibold text-white transition hover:bg-palette-dark"
+                className="flex items-center gap-1.5 rounded-full bg-palette-primary px-4 py-2 text-xs font-semibold text-white shadow transition hover:bg-palette-dark sm:px-5"
               >
-                Download PDF
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+                </svg>
+                <span className="hidden sm:inline">Download PDF</span>
+                <span className="sm:hidden">Download</span>
               </button>
+              {previewUrl && (
+                <a
+                  href={previewUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hidden rounded-full border border-palette-light px-4 py-2 text-xs font-semibold text-palette-dark transition hover:border-palette-primary sm:inline-block"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  Open in Tab
+                </a>
+              )}
               <button
                 onClick={closePreview}
-                className="rounded-full border border-palette-light px-5 py-2 text-xs font-semibold text-palette-dark transition hover:border-palette-primary"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-palette-light text-palette-dark transition hover:border-palette-primary"
               >
-                Close
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
           </div>
 
-          {/* PDF iframe */}
-          <div className="flex-1 overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <iframe
-              src={previewUrl}
-              className="h-full w-full border-0"
-              title="Invoice Preview"
-            />
+          {/* PDF viewer area */}
+          <div className="flex flex-1 flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            {isMobile ? (
+              /* Mobile: PDF iframes are unreliable — show action cards instead */
+              <div className="flex flex-1 flex-col items-center justify-center gap-5 bg-gray-100 px-6 py-10">
+                <div className="rounded-2xl bg-white p-6 shadow-lg text-center w-full max-w-sm">
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-palette-primary/10">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-palette-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <p className="mb-1 font-semibold text-palette-dark text-base">Invoice Ready</p>
+                  <p className="mb-5 text-sm text-palette-dark/50">
+                    {order.invoice?.invoiceNumber || order.orderNumber}
+                  </p>
+                  <div className="flex flex-col gap-3">
+                    <button
+                      onClick={handleDownload}
+                      className="w-full rounded-full bg-palette-primary py-3 text-sm font-semibold text-white shadow transition hover:bg-palette-dark"
+                    >
+                      Download PDF
+                    </button>
+                    {previewUrl && (
+                      <a
+                        href={previewUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full rounded-full border border-palette-primary py-3 text-sm font-semibold text-palette-primary text-center transition hover:bg-palette-primary/5"
+                      >
+                        Open in Browser
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* Desktop: embed PDF */
+              <object
+                data={previewUrl}
+                type="application/pdf"
+                className="h-full w-full border-0"
+                title="Invoice Preview"
+              >
+                {/* Fallback if browser can't embed */}
+                <div className="flex h-full flex-col items-center justify-center gap-4 bg-gray-100">
+                  <p className="text-sm text-palette-dark/60">Cannot display PDF in browser.</p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleDownload}
+                      className="rounded-full bg-palette-primary px-6 py-2.5 text-sm font-semibold text-white"
+                    >
+                      Download PDF
+                    </button>
+                    {previewUrl && (
+                      <a href={previewUrl} target="_blank" rel="noopener noreferrer"
+                        className="rounded-full border border-palette-primary px-6 py-2.5 text-sm font-semibold text-palette-primary">
+                        Open in New Tab
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </object>
+            )}
           </div>
         </div>
       )}

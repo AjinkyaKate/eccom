@@ -15,6 +15,29 @@ export default function SiteHeaderClient() {
   const [menuOpen, setMenuOpen] = useState(false);
   const searchRef = useRef(null);
 
+  // Extracted so it can be called on mount AND on auth:updated event
+  const loadSession = async () => {
+    const token = window.localStorage.getItem(CUSTOMER_TOKEN_KEY);
+    if (!token) {
+      setCustomer(null);
+      setCartCount(0);
+      return;
+    }
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      const [profileResponse, cartResponse] = await Promise.all([
+        apiFetch('/api/auth/me', { headers }),
+        apiFetch('/api/cart', { headers }),
+      ]);
+      setCustomer(profileResponse?.data?.user || null);
+      setCartCount(cartResponse?.data?.cart?.totalItems || 0);
+    } catch {
+      window.localStorage.removeItem(CUSTOMER_TOKEN_KEY);
+      setCustomer(null);
+      setCartCount(0);
+    }
+  };
+
   const refreshCartCount = async () => {
     const token = window.localStorage.getItem(CUSTOMER_TOKEN_KEY);
     if (!token) return;
@@ -24,36 +47,21 @@ export default function SiteHeaderClient() {
     } catch {}
   };
 
+  // Run once on mount
   useEffect(() => {
-    let isMounted = true;
-
-    const loadSession = async () => {
-      const token = window.localStorage.getItem(CUSTOMER_TOKEN_KEY);
-      if (!token) return;
-
-      try {
-        const headers = { Authorization: `Bearer ${token}` };
-        const [profileResponse, cartResponse] = await Promise.all([
-          apiFetch('/api/auth/me', { headers }),
-          apiFetch('/api/cart', { headers }),
-        ]);
-        if (!isMounted) return;
-        setCustomer(profileResponse?.data?.user || null);
-        setCartCount(cartResponse?.data?.cart?.totalItems || 0);
-      } catch {
-        window.localStorage.removeItem(CUSTOMER_TOKEN_KEY);
-      }
-    };
-
     loadSession();
-    return () => { isMounted = false; };
+  }, []);
+
+  // Re-run whenever login/logout happens from any page
+  useEffect(() => {
+    window.addEventListener('auth:updated', loadSession);
+    return () => window.removeEventListener('auth:updated', loadSession);
   }, []);
 
   // Update cart badge instantly from any page
   useEffect(() => {
     const handler = (e) => {
       if (e.detail?.totalItems !== undefined) {
-        // Count provided directly — no extra API call needed
         setCartCount(e.detail.totalItems);
       } else {
         refreshCartCount();
@@ -80,8 +88,10 @@ export default function SiteHeaderClient() {
 
   const handleLogout = () => {
     window.localStorage.removeItem(CUSTOMER_TOKEN_KEY);
+    sessionStorage.removeItem('pendingCartAdd');
     setCustomer(null);
     setCartCount(0);
+    window.dispatchEvent(new CustomEvent('auth:updated'));
     router.push('/');
   };
 

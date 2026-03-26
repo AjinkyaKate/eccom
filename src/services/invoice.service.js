@@ -1,4 +1,10 @@
 const PDFDocument = require('pdfkit');
+const path = require('path');
+const fs   = require('fs');
+
+// ── Logo ─────────────────────────────────────────────────────────────────────
+const LOGO_PATH = path.join(__dirname, '../assets/logo.jpeg');
+const HAS_LOGO  = fs.existsSync(LOGO_PATH);
 
 // ── number-to-words helpers ─────────────────────────────────────────────────
 
@@ -18,35 +24,38 @@ const toWords = (n) => {
 
 const amountInWords = (amount) => {
   const rounded = Math.round(amount * 100) / 100;
-  const rupees = Math.floor(rounded);
-  const paise = Math.round((rounded - rupees) * 100);
+  const rupees  = Math.floor(rounded);
+  const paise   = Math.round((rounded - rupees) * 100);
   let words = toWords(rupees) + ' Rupees';
   if (paise > 0) words += ` and ${toWords(paise)} Paise`;
   return words + ' Only';
 };
 
-const fmt = (n) => (Number(n) || 0).toFixed(2);
+const fmt    = (n) => (Number(n) || 0).toFixed(2);
 const fmtQty = (n) => (Number(n) || 0).toString();
 
-// ── layout constants ────────────────────────────────────────────────────────
+// ── layout constants ─────────────────────────────────────────────────────────
 
-const PAGE_W = 595.28;
-const PAGE_H = 841.89;
-const MARGIN = 36;
+const PAGE_W   = 595.28;
+const PAGE_H   = 841.89;
+const MARGIN   = 32;
 const CONTENT_W = PAGE_W - MARGIN * 2;
 
-// Design tokens
-const C_NAVY    = '#1e3a5f';
+// ── Design tokens ─────────────────────────────────────────────────────────────
+const C_NAVY    = '#1a3557';
+const C_NAVY2   = '#22426e';
+const C_ORANGE  = '#e07b2a';   // accent — Indian warmth
 const C_DARK    = '#1a1a2e';
 const C_MID     = '#4a5568';
 const C_LIGHT   = '#718096';
-const C_BORDER  = '#cbd5e0';
-const C_BORDER2 = '#e2e8f0';
-const C_BG_ROW  = '#f7fafc';
-const C_BG_HDR  = '#edf2f7';
-const C_BG_TOTL = '#ebf4ff';
+const C_BORDER  = '#c8d6e5';
+const C_BORDER2 = '#e2ecf4';
+const C_BG_ROW  = '#f4f8fc';
+const C_BG_HDR  = '#e8f0fa';
+const C_BG_TOTL = '#ddeeff';
+const C_WHITE   = '#ffffff';
 
-// ── drawing helpers ─────────────────────────────────────────────────────────
+// ── drawing helpers ──────────────────────────────────────────────────────────
 
 const hline = (doc, x, y, w, color = C_BORDER, lw = 0.5) => {
   doc.save().strokeColor(color).lineWidth(lw).moveTo(x, y).lineTo(x + w, y).stroke().restore();
@@ -60,12 +69,16 @@ const fillRect = (doc, x, y, w, h, color) => {
   doc.save().rect(x, y, w, h).fill(color).restore();
 };
 
+const strokeRect = (doc, x, y, w, h, color = C_BORDER, lw = 0.7) => {
+  doc.save().rect(x, y, w, h).strokeColor(color).lineWidth(lw).stroke().restore();
+};
+
 const cell = (doc, text, x, y, w, h, opts = {}) => {
-  const pad   = opts.pad !== undefined ? opts.pad : 5;
-  const align = opts.align  || 'left';
+  const pad   = opts.pad   !== undefined ? opts.pad : 5;
+  const align = opts.align || 'left';
   const fs    = opts.fontSize || 9;
-  const color = opts.color  || C_DARK;
-  const bold  = opts.bold   || false;
+  const color = opts.color || C_DARK;
+  const bold  = opts.bold  || false;
   doc.save()
     .font(bold ? 'Helvetica-Bold' : 'Helvetica')
     .fontSize(fs)
@@ -78,32 +91,27 @@ const cell = (doc, text, x, y, w, h, opts = {}) => {
     .restore();
 };
 
-// ── page-break guard ────────────────────────────────────────────────────────
-
 const guard = (doc, y, need = 50) => {
-  if (y + need > PAGE_H - MARGIN) {
-    doc.addPage();
-    return MARGIN;
-  }
+  if (y + need > PAGE_H - MARGIN) { doc.addPage(); return MARGIN; }
   return y;
 };
 
-// ── column definitions ──────────────────────────────────────────────────────
-
+// ── column definitions ────────────────────────────────────────────────────────
+// Total must equal CONTENT_W = 531.28; sum = 24+130+44+28+30+40+48+28+40+28+40+41 = 521
+// We give name a bit more: 24+138+44+28+30+40+48+28+40+28+40+33 = 521 → adjust last
 const buildColumns = () => [
-  { key: 'sr',      label: 'Sr.',          w: 24,  align: 'center' },
-  { key: 'name',    label: 'Item Name',    w: 128, align: 'left'   },
-  { key: 'hsn',     label: 'HSN/SAC',      w: 44,  align: 'center' },
-  { key: 'qty',     label: 'Qty',          w: 28,  align: 'center' },
-  { key: 'unit',    label: 'Unit',         w: 30,  align: 'center' },
-  { key: 'rate',    label: 'Rate',         w: 40,  align: 'right'  },
-  { key: 'taxable', label: 'Taxable Val',  w: 48,  align: 'right'  },
-  { key: 'cgstR',   label: 'CGST %',       w: 30,  align: 'center' },
-  { key: 'cgstA',   label: 'CGST Amt',     w: 40,  align: 'right'  },
-  { key: 'sgstR',   label: 'SGST %',       w: 30,  align: 'center' },
-  { key: 'sgstA',   label: 'SGST Amt',     w: 40,  align: 'right'  },
-  { key: 'total',   label: 'Total',        w: 41,  align: 'right'  },
-  // sum = 24+128+44+28+30+40+48+30+40+30+40+41 = 523 ≈ CONTENT_W (523.28)
+  { key: 'sr',      label: 'Sr.',         w: 24,  align: 'center' },
+  { key: 'name',    label: 'Item / Description', w: 136, align: 'left'   },
+  { key: 'hsn',     label: 'HSN/SAC',     w: 44,  align: 'center' },
+  { key: 'qty',     label: 'Qty',         w: 28,  align: 'center' },
+  { key: 'unit',    label: 'Unit',        w: 30,  align: 'center' },
+  { key: 'rate',    label: 'Rate (₹)',    w: 42,  align: 'right'  },
+  { key: 'taxable', label: 'Taxable (₹)', w: 50,  align: 'right'  },
+  { key: 'cgstR',   label: 'CGST%',      w: 28,  align: 'center' },
+  { key: 'cgstA',   label: 'CGST (₹)',   w: 42,  align: 'right'  },
+  { key: 'sgstR',   label: 'SGST%',      w: 28,  align: 'center' },
+  { key: 'sgstA',   label: 'SGST (₹)',   w: 42,  align: 'right'  },
+  { key: 'total',   label: 'Total (₹)',  w: 37,  align: 'right'  },
 ];
 
 const colsWithX = (cols) => {
@@ -111,7 +119,7 @@ const colsWithX = (cols) => {
   return cols.map((c) => { const col = { ...c, x }; x += c.w; return col; });
 };
 
-// ── main export ─────────────────────────────────────────────────────────────
+// ── main export ───────────────────────────────────────────────────────────────
 
 const generateInvoicePdf = (order, settings) =>
   new Promise((resolve, reject) => {
@@ -132,135 +140,186 @@ const generateInvoicePdf = (order, settings) =>
 
       let y = 0;
 
-      // ── 1. Top accent bar ───────────────────────────────────────────────
-      fillRect(doc, 0, 0, PAGE_W, 5, C_NAVY);
-      y = 14;
+      // ── 1. Top decorative bar ────────────────────────────────────────────
+      // Double bar: thick navy + thin orange stripe
+      fillRect(doc, 0, 0, PAGE_W, 7, C_NAVY);
+      fillRect(doc, 0, 7, PAGE_W, 3, C_ORANGE);
+      y = 18;
 
-      // ── 2. Business header ──────────────────────────────────────────────
-      doc.font('Helvetica-Bold').fontSize(16).fillColor(C_NAVY)
-        .text(settings.businessName || 'Your Business', MARGIN, y, { width: CONTENT_W, align: 'center' });
-      y += 20;
+      // ── 2. Business header (logo left + details right) ───────────────────
+      const LOGO_SIZE = 62;
+      const INFO_X    = MARGIN + (HAS_LOGO ? LOGO_SIZE + 12 : 0);
+      const INFO_W    = CONTENT_W - (HAS_LOGO ? LOGO_SIZE + 12 : 0);
+
+      const headerTopY = y;
+
+      if (HAS_LOGO) {
+        // Rounded white card behind logo
+        fillRect(doc, MARGIN - 2, y - 2, LOGO_SIZE + 4, LOGO_SIZE + 4, C_WHITE);
+        strokeRect(doc, MARGIN - 2, y - 2, LOGO_SIZE + 4, LOGO_SIZE + 4, C_BORDER, 0.5);
+        doc.image(LOGO_PATH, MARGIN, y, { width: LOGO_SIZE, height: LOGO_SIZE });
+      }
+
+      // Business name
+      doc.font('Helvetica-Bold').fontSize(17).fillColor(C_NAVY)
+        .text(settings.businessName || 'Your Business', INFO_X, y, { width: INFO_W, align: HAS_LOGO ? 'left' : 'center' });
+      y += 22;
 
       if (settings.tagline) {
-        doc.font('Helvetica').fontSize(9).fillColor(C_LIGHT)
-          .text(settings.tagline, MARGIN, y, { width: CONTENT_W, align: 'center' });
+        doc.font('Helvetica').fontSize(9).fillColor(C_ORANGE)
+          .text(settings.tagline, INFO_X, y, { width: INFO_W, align: HAS_LOGO ? 'left' : 'center' });
         y += 13;
       }
 
       const addrLine = [settings.address, settings.city, settings.state, settings.pincode]
         .filter(Boolean).join(', ');
       if (addrLine) {
-        doc.font('Helvetica').fontSize(9).fillColor(C_MID)
-          .text(addrLine, MARGIN, y, { width: CONTENT_W, align: 'center' });
+        doc.font('Helvetica').fontSize(8.5).fillColor(C_MID)
+          .text(addrLine, INFO_X, y, { width: INFO_W, align: HAS_LOGO ? 'left' : 'center' });
+        y += 12;
+      }
+
+      const contactParts = [];
+      if (settings.phone) contactParts.push(`Mob: ${settings.phone}`);
+      if (settings.email) contactParts.push(settings.email);
+      if (contactParts.length) {
+        doc.font('Helvetica').fontSize(8.5).fillColor(C_MID)
+          .text(contactParts.join('   |   '), INFO_X, y, { width: INFO_W, align: HAS_LOGO ? 'left' : 'center' });
+        y += 12;
+      }
+
+      // GSTIN + PAN in a highlighted row
+      const gstPanParts = [];
+      if (settings.gstin) gstPanParts.push(`GSTIN: ${settings.gstin}`);
+      if (settings.pan)   gstPanParts.push(`PAN: ${settings.pan}`);
+      if (gstPanParts.length) {
+        doc.font('Helvetica-Bold').fontSize(8.5).fillColor(C_NAVY2)
+          .text(gstPanParts.join('     '), INFO_X, y, { width: INFO_W, align: HAS_LOGO ? 'left' : 'center' });
         y += 13;
       }
 
-      const contactLine = [
-        settings.phone ? `Phone: ${settings.phone}` : '',
-        settings.email || '',
-      ].filter(Boolean).join('   |   ');
-      if (contactLine) {
-        doc.font('Helvetica').fontSize(9).fillColor(C_MID)
-          .text(contactLine, MARGIN, y, { width: CONTENT_W, align: 'center' });
-        y += 13;
-      }
+      // Make sure y clears the logo height
+      if (HAS_LOGO) y = Math.max(y, headerTopY + LOGO_SIZE + 6);
 
-      if (settings.gstin) {
-        doc.font('Helvetica-Bold').fontSize(9).fillColor(C_MID)
-          .text(`GSTIN: ${settings.gstin}`, MARGIN, y, { width: CONTENT_W, align: 'center' });
-        y += 13;
-      }
+      y += 4;
 
-      y += 6;
-      hline(doc, MARGIN, y, CONTENT_W, C_NAVY, 1);
+      // ── 3. Section divider ───────────────────────────────────────────────
+      hline(doc, MARGIN, y, CONTENT_W, C_NAVY, 1.2);
+      y += 2;
+      hline(doc, MARGIN, y, CONTENT_W, C_ORANGE, 0.6);
       y += 8;
 
-      // ── 3. Document title ───────────────────────────────────────────────
-      const titleW = 160;
-      const titleX = (PAGE_W - titleW) / 2;
-      fillRect(doc, titleX, y, titleW, 22, C_BG_HDR);
-      doc.font('Helvetica-Bold').fontSize(11).fillColor(C_NAVY)
-        .text('BILL OF SUPPLY', titleX, y + 5, { width: titleW, align: 'center' });
-      y += 30;
+      // ── 4. "TAX INVOICE" banner ──────────────────────────────────────────
+      const bannerH = 24;
+      fillRect(doc, MARGIN, y, CONTENT_W, bannerH, C_NAVY);
+      doc.font('Helvetica-Bold').fontSize(12).fillColor(C_WHITE)
+        .text('TAX INVOICE', MARGIN, y + (bannerH - 12 * 1.2) / 2 + 1, { width: CONTENT_W, align: 'center' });
+      y += bannerH + 10;
 
-      hline(doc, MARGIN, y, CONTENT_W, C_BORDER);
-      y += 10;
+      // ── 5. Bill To (left) + Invoice Meta (right) ─────────────────────────
+      const billW  = CONTENT_W * 0.50;
+      const metaW  = CONTENT_W - billW - 1;
+      const metaX  = MARGIN + billW + 1;
 
-      // ── 4. Invoice meta + Billed To ────────────────────────────────────
-      const metaW  = CONTENT_W * 0.52;
-      const billedW = CONTENT_W - metaW - 10;
-      const billedX = MARGIN + metaW + 10;
+      const sectionTopY = y;
 
+      // Bill To box
+      fillRect(doc, MARGIN, y, billW, 18, C_BG_HDR);
+      strokeRect(doc, MARGIN, y, billW, 18, C_BORDER);
+      doc.font('Helvetica-Bold').fontSize(9).fillColor(C_NAVY)
+        .text('BILL TO / SHIP TO', MARGIN + 6, y + 4, { width: billW - 12 });
+      y += 18;
+
+      const cust  = order.customer       || {};
+      const addr  = order.shippingAddress || {};
+      const billLines = [
+        { text: cust.name || addr.name || '—', bold: true, fs: 10 },
+        cust.phone     ? { text: `Mob: ${cust.phone}` }              : null,
+        addr.businessName ? { text: addr.businessName, bold: true }  : null,
+        addr.street    ? { text: addr.street }                       : null,
+        [addr.city, addr.state].filter(Boolean).join(', ')
+          ? { text: [addr.city, addr.state, addr.pincode].filter(Boolean).join(', ') }
+          : null,
+      ].filter(Boolean);
+
+      const billBoxH = Math.max(billLines.length * 14 + 10, 70);
+      fillRect(doc, MARGIN, y, billW, billBoxH, '#fafcff');
+      strokeRect(doc, MARGIN, y, billW, billBoxH, C_BORDER);
+
+      let blY = y + 7;
+      billLines.forEach(({ text, bold, fs }) => {
+        doc.font(bold ? 'Helvetica-Bold' : 'Helvetica')
+          .fontSize(fs || 9).fillColor(C_DARK)
+          .text(text, MARGIN + 8, blY, { width: billW - 16 });
+        blY += fs ? fs * 1.4 : 13;
+      });
+
+      // Invoice meta box (right side)
       const invoiceNo   = order.invoice?.invoiceNumber || order.orderNumber;
-      const invoiceDate = order.invoice?.generatedAt   || order.createdAt  || new Date();
-      const dateStr     = new Date(invoiceDate).toLocaleDateString('en-IN', {
+      const invoiceDate = order.invoice?.generatedAt   || order.createdAt || new Date();
+      const dateStr = new Date(invoiceDate).toLocaleDateString('en-IN', {
         day: '2-digit', month: 'short', year: 'numeric',
       });
 
       const metaRows = [
-        ['Invoice No.',     invoiceNo],
-        ['Invoice Date',    dateStr],
-        ['Order No.',       order.orderNumber],
-        ['Payment Method',  order.payment?.method || 'COD'],
-        ['Place of Supply', `${settings.state || ''}${settings.stateCode ? ` (${settings.stateCode})` : ''}`.trim()],
+        ['Invoice No.',     invoiceNo,                                         true ],
+        ['Invoice Date',    dateStr,                                            false],
+        ['Order No.',       order.orderNumber,                                  false],
+        ['Payment Mode',    (order.payment?.method || 'COD').toUpperCase(),     false],
+        ['Place of Supply', `${settings.state || ''}${settings.stateCode ? ` (${settings.stateCode})` : ''}`.trim() || '—', false],
       ];
 
-      const metaStartY = y;
-      let metaRowY = metaStartY;
-      metaRows.forEach(([label, val]) => {
-        doc.font('Helvetica-Bold').fontSize(8.5).fillColor(C_LIGHT)
-          .text(label + ':', MARGIN, metaRowY, { width: 80, align: 'left' });
-        doc.font('Helvetica').fontSize(9).fillColor(C_DARK)
-          .text(String(val || '—'), MARGIN + 82, metaRowY, { width: metaW - 84, align: 'left' });
-        metaRowY += 14;
+      const metaTotalH = 18 + Math.max(metaRows.length * 14 + 10, 70);
+      fillRect(doc, metaX, sectionTopY, metaW, 18, C_BG_HDR);
+      strokeRect(doc, metaX, sectionTopY, metaW, 18, C_BORDER);
+      doc.font('Helvetica-Bold').fontSize(9).fillColor(C_NAVY)
+        .text('INVOICE DETAILS', metaX + 6, sectionTopY + 4, { width: metaW - 12 });
+
+      const metaDataY = sectionTopY + 18;
+      fillRect(doc, metaX, metaDataY, metaW, Math.max(metaRows.length * 14 + 10, 70), '#fafcff');
+      strokeRect(doc, metaX, metaDataY, metaW, Math.max(metaRows.length * 14 + 10, 70), C_BORDER);
+
+      let mrY = metaDataY + 7;
+      metaRows.forEach(([label, val, valBold]) => {
+        const labelW = 76;
+        doc.font('Helvetica').fontSize(8).fillColor(C_LIGHT)
+          .text(label, metaX + 8, mrY, { width: labelW });
+        doc.font(valBold ? 'Helvetica-Bold' : 'Helvetica').fontSize(9).fillColor(valBold ? C_NAVY : C_DARK)
+          .text(String(val || '—'), metaX + 8 + labelW, mrY, { width: metaW - labelW - 16 });
+        mrY += 14;
       });
 
-      // Billed To box
-      const cust  = order.customer       || {};
-      const addr  = order.shippingAddress || {};
-      const billedLines = [
-        cust.name || addr.name || '',
-        cust.phone ? `Phone: ${cust.phone}` : '',
-        addr.businessName || '',
-        addr.street || '',
-        [addr.city, addr.state, addr.pincode].filter(Boolean).join(', '),
-      ].filter(Boolean);
+      y = sectionTopY + Math.max(18 + billBoxH, metaTotalH) + 10;
 
-      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(C_NAVY)
-        .text('BILLED TO', billedX, metaStartY, { width: billedW });
-      hline(doc, billedX, metaStartY + 12, billedW, C_NAVY, 0.7);
-      let btY = metaStartY + 16;
-      billedLines.forEach((line) => {
-        doc.font('Helvetica').fontSize(9).fillColor(C_DARK)
-          .text(line, billedX, btY, { width: billedW });
-        btY += 13;
-      });
-
-      y = Math.max(metaRowY, btY) + 10;
-      hline(doc, MARGIN, y, CONTENT_W, C_BORDER);
+      hline(doc, MARGIN, y, CONTENT_W, C_BORDER, 0.7);
       y += 8;
 
-      // ── 5. Items table header ───────────────────────────────────────────
+      // ── 6. Items table header ─────────────────────────────────────────────
       y = guard(doc, y, HDR_H + ROW_H);
-      fillRect(doc, MARGIN, y, CONTENT_W, HDR_H, C_NAVY);
+      fillRect(doc, MARGIN, y, CONTENT_W, HDR_H, C_NAVY2);
+      // Bottom orange accent on header
+      fillRect(doc, MARGIN, y + HDR_H - 2, CONTENT_W, 2, C_ORANGE);
       cols.forEach((col, i) => {
-        if (i > 0) vline(doc, col.x, y, y + HDR_H, 'rgba(255,255,255,0.25)', 0.5);
+        if (i > 0) vline(doc, col.x, y, y + HDR_H, 'rgba(255,255,255,0.2)', 0.5);
         cell(doc, col.label, col.x, y, col.w, HDR_H, {
-          align: col.align, bold: true, fontSize: 8.5, color: '#ffffff', vPad: (HDR_H - 10) / 2,
+          align: col.align, bold: true, fontSize: 8, color: C_WHITE, vPad: (HDR_H - 9.6) / 2,
         });
       });
       y += HDR_H;
 
-      // ── 6. Item rows ────────────────────────────────────────────────────
+      // ── 7. Item rows ──────────────────────────────────────────────────────
       const items = order.items || [];
       let totTaxable = 0, totCgst = 0, totSgst = 0, totTotal = 0;
+
+      // Outer border for table
+      const tableStartY = y;
 
       items.forEach((item, idx) => {
         y = guard(doc, y, ROW_H);
 
-        const taxable = Number(item.price    || 0) * Number(item.quantity || 0);
-        const cgstAmt = Number(item.cgstAmount || 0);
-        const sgstAmt = Number(item.sgstAmount || 0);
+        const taxable  = Number(item.price    || 0) * Number(item.quantity || 0);
+        const cgstAmt  = Number(item.cgstAmount || 0);
+        const sgstAmt  = Number(item.sgstAmount || 0);
         const rowTotal = taxable + cgstAmt + sgstAmt;
         totTaxable += taxable;
         totCgst    += cgstAmt;
@@ -275,213 +334,250 @@ const generateInvoicePdf = (order, settings) =>
           unit:    item.unit   || 'PCS',
           rate:    fmt(item.price),
           taxable: fmt(taxable),
-          cgstR:   item.cgstRate ? `${item.cgstRate}%` : '',
-          cgstA:   cgstAmt ? fmt(cgstAmt) : '',
-          sgstR:   item.sgstRate ? `${item.sgstRate}%` : '',
-          sgstA:   sgstAmt ? fmt(sgstAmt) : '',
+          cgstR:   item.cgstRate ? `${item.cgstRate}%` : '-',
+          cgstA:   cgstAmt ? fmt(cgstAmt) : '-',
+          sgstR:   item.sgstRate ? `${item.sgstRate}%` : '-',
+          sgstA:   sgstAmt ? fmt(sgstAmt) : '-',
           total:   fmt(rowTotal),
         };
 
-        if (idx % 2 !== 0) fillRect(doc, MARGIN, y, CONTENT_W, ROW_H, C_BG_ROW);
+        if (idx % 2 === 0) fillRect(doc, MARGIN, y, CONTENT_W, ROW_H, C_WHITE);
+        else                fillRect(doc, MARGIN, y, CONTENT_W, ROW_H, C_BG_ROW);
         hline(doc, MARGIN, y + ROW_H, CONTENT_W, C_BORDER2);
 
         cols.forEach((col, ci) => {
-          if (ci > 0) vline(doc, col.x, y, y + ROW_H);
-          cell(doc, rowVals[col.key], col.x, y, col.w, ROW_H, { align: col.align, fontSize: 9 });
+          if (ci > 0) vline(doc, col.x, y, y + ROW_H, C_BORDER2);
+          cell(doc, rowVals[col.key], col.x, y, col.w, ROW_H, { align: col.align, fontSize: 8.5 });
         });
 
         y += ROW_H;
       });
 
-      // ── 7. Totals row ───────────────────────────────────────────────────
-      y = guard(doc, y, ROW_H + 60);
+      // outer border around table
+      strokeRect(doc, MARGIN, tableStartY, CONTENT_W, y - tableStartY, C_BORDER, 0.7);
+
+      // ── 8. Totals row ─────────────────────────────────────────────────────
+      y = guard(doc, y, ROW_H + 80);
       fillRect(doc, MARGIN, y, CONTENT_W, ROW_H, C_BG_TOTL);
-      hline(doc, MARGIN, y, CONTENT_W, C_NAVY, 0.8);
+      hline(doc, MARGIN, y, CONTENT_W, C_NAVY2, 1);
 
       const totStartCol = cols.find((c) => c.key === 'taxable');
-      cell(doc, 'TOTAL', MARGIN, y, totStartCol.x - MARGIN - 5, ROW_H,
-        { bold: true, align: 'right', fontSize: 9.5, color: C_NAVY });
+      cell(doc, 'SUB TOTAL', MARGIN, y, totStartCol.x - MARGIN - 4, ROW_H,
+        { bold: true, align: 'right', fontSize: 9, color: C_NAVY });
       cols.filter((c) => ['taxable', 'cgstA', 'sgstA', 'total'].includes(c.key)).forEach((col) => {
-        const valMap = { taxable: fmt(totTaxable), cgstA: fmt(totCgst), sgstA: fmt(totSgst), total: fmt(totTotal) };
+        const valMap = {
+          taxable: fmt(totTaxable),
+          cgstA:   totCgst ? fmt(totCgst) : '-',
+          sgstA:   totSgst ? fmt(totSgst) : '-',
+          total:   fmt(totTotal),
+        };
         if (col.key !== 'taxable') vline(doc, col.x, y, y + ROW_H, C_BORDER);
         cell(doc, valMap[col.key], col.x, y, col.w, ROW_H,
-          { bold: true, align: 'right', fontSize: 9.5, color: C_NAVY });
+          { bold: true, align: 'right', fontSize: 9, color: C_NAVY });
       });
 
-      hline(doc, MARGIN, y + ROW_H, CONTENT_W, C_NAVY, 0.8);
+      hline(doc, MARGIN, y + ROW_H, CONTENT_W, C_NAVY2, 1);
       y += ROW_H + 8;
 
-      // Shipping / discount / grand total
+      // Shipping / discount / grand total (right-aligned summary)
       const shippingCharges = Number(order.pricing?.shippingCharges || 0);
       const discount        = Number(order.pricing?.discount        || 0);
       const grandTotal      = totTotal + shippingCharges - discount;
 
+      const summaryX = PAGE_W - MARGIN - 220;
+      const summaryW = 220;
+
       if (shippingCharges > 0) {
-        doc.font('Helvetica').fontSize(9.5).fillColor(C_MID)
-          .text(`Shipping Charges: ₹${fmt(shippingCharges)}`, MARGIN, y, { width: CONTENT_W, align: 'right' });
+        doc.font('Helvetica').fontSize(9).fillColor(C_MID)
+          .text('Shipping Charges:', summaryX, y, { width: 130, align: 'right' });
+        doc.font('Helvetica').fontSize(9).fillColor(C_DARK)
+          .text(`₹ ${fmt(shippingCharges)}`, summaryX + 134, y, { width: 86, align: 'right' });
         y += 15;
       }
       if (discount > 0) {
-        doc.font('Helvetica').fontSize(9.5).fillColor(C_MID)
-          .text(`Discount: -₹${fmt(discount)}`, MARGIN, y, { width: CONTENT_W, align: 'right' });
+        doc.font('Helvetica').fontSize(9).fillColor('#c0392b')
+          .text('Discount:', summaryX, y, { width: 130, align: 'right' });
+        doc.font('Helvetica').fontSize(9).fillColor('#c0392b')
+          .text(`- ₹ ${fmt(discount)}`, summaryX + 134, y, { width: 86, align: 'right' });
         y += 15;
       }
 
       // Grand total box
-      const gtBoxW = 220;
-      const gtBoxX = PAGE_W - MARGIN - gtBoxW;
-      fillRect(doc, gtBoxX, y, gtBoxW, 28, C_NAVY);
-      doc.font('Helvetica-Bold').fontSize(12).fillColor('#ffffff')
-        .text(`Grand Total: ₹${fmt(grandTotal)}`, gtBoxX, y + 7, { width: gtBoxW - 10, align: 'right' });
-      y += 36;
+      fillRect(doc, summaryX, y, summaryW, 30, C_NAVY);
+      fillRect(doc, summaryX, y + 28, summaryW, 2, C_ORANGE);
+      doc.font('Helvetica-Bold').fontSize(11).fillColor(C_WHITE)
+        .text(`Grand Total:  ₹ ${fmt(grandTotal)}`, summaryX, y + 8, { width: summaryW - 10, align: 'right' });
+      y += 40;
 
-      doc.font('Helvetica').fontSize(9).fillColor(C_MID)
-        .text(`Amount in Words: ${amountInWords(grandTotal)}`, MARGIN, y, { width: CONTENT_W });
-      y += 18;
+      // Amount in words
+      fillRect(doc, MARGIN, y, CONTENT_W, 18, C_BG_HDR);
+      strokeRect(doc, MARGIN, y, CONTENT_W, 18, C_BORDER);
+      doc.font('Helvetica-Bold').fontSize(8).fillColor(C_LIGHT)
+        .text('Amount in Words:', MARGIN + 6, y + 4, { continued: true });
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(C_NAVY)
+        .text(`  ${amountInWords(grandTotal)}`, { width: CONTENT_W - 100 });
+      y += 26;
 
       hline(doc, MARGIN, y, CONTENT_W, C_BORDER);
       y += 10;
 
-      // ── 8. Tax summary ──────────────────────────────────────────────────
+      // ── 9. Tax summary ────────────────────────────────────────────────────
       if (totCgst > 0 || totSgst > 0) {
-        y = guard(doc, y, 80);
+        y = guard(doc, y, 90);
 
-        doc.font('Helvetica-Bold').fontSize(9.5).fillColor(C_NAVY).text('Tax Summary', MARGIN, y);
-        y += 14;
+        // Section heading
+        fillRect(doc, MARGIN, y, CONTENT_W, 18, C_BG_HDR);
+        strokeRect(doc, MARGIN, y, CONTENT_W, 18, C_BORDER);
+        doc.font('Helvetica-Bold').fontSize(9).fillColor(C_NAVY)
+          .text('TAX SUMMARY', MARGIN + 6, y + 4);
+        y += 18;
 
         const taxCols = [
-          { label: 'HSN/SAC',      w: 72  },
-          { label: 'Taxable Value', w: 88  },
-          { label: 'CGST Rate',    w: 64  },
-          { label: 'CGST Amount',  w: 76  },
-          { label: 'SGST Rate',    w: 64  },
-          { label: 'SGST Amount',  w: 76  },
-          { label: 'Total Tax',    w: 83  },
+          { label: 'HSN/SAC',       w: 70  },
+          { label: 'Taxable Value', w: 90  },
+          { label: 'CGST Rate',     w: 64  },
+          { label: 'CGST Amount',   w: 76  },
+          { label: 'SGST Rate',     w: 64  },
+          { label: 'SGST Amount',   w: 76  },
+          { label: 'Total Tax',     w: 91  },
         ];
-        // sum = 72+88+64+76+64+76+83 = 523 ✓
         let tx = MARGIN;
         const taxColsX = taxCols.map((c) => { const col = { ...c, x: tx }; tx += c.w; return col; });
-        const taxRowH = 20;
+        const taxRowH  = 20;
 
-        fillRect(doc, MARGIN, y, CONTENT_W, taxRowH, C_BG_HDR);
-        hline(doc, MARGIN, y, CONTENT_W, C_BORDER);
+        fillRect(doc, MARGIN, y, CONTENT_W, taxRowH, C_NAVY2);
         taxColsX.forEach((c, i) => {
-          if (i > 0) vline(doc, c.x, y, y + taxRowH);
+          if (i > 0) vline(doc, c.x, y, y + taxRowH, 'rgba(255,255,255,0.2)', 0.5);
           cell(doc, c.label, c.x, y, c.w, taxRowH,
-            { bold: true, fontSize: 8.5, align: 'center', color: C_NAVY, vPad: (taxRowH - 10) / 2 });
+            { bold: true, fontSize: 8, align: 'center', color: C_WHITE, vPad: (taxRowH - 9.6) / 2 });
         });
-        hline(doc, MARGIN, y + taxRowH, CONTENT_W, C_BORDER);
         y += taxRowH;
 
-        // Group by HSN + tax-rate combo to avoid rate conflicts
         const hsnMap = {};
         items.forEach((item) => {
           const key = `${item.hsn || '-'}_${item.cgstRate || 0}_${item.sgstRate || 0}`;
           if (!hsnMap[key]) {
             hsnMap[key] = {
-              hsn: item.hsn || '-',
-              taxable: 0,
-              cgstRate: item.cgstRate || 0,
-              cgst: 0,
-              sgstRate: item.sgstRate || 0,
-              sgst: 0,
+              hsn: item.hsn || '-', taxable: 0,
+              cgstRate: item.cgstRate || 0, cgst: 0,
+              sgstRate: item.sgstRate || 0, sgst: 0,
             };
           }
-          const t = Number(item.price || 0) * Number(item.quantity || 0);
-          hsnMap[key].taxable += t;
-          hsnMap[key].cgst    += Number(item.cgstAmount  || 0);
-          hsnMap[key].sgst    += Number(item.sgstAmount  || 0);
+          hsnMap[key].taxable += Number(item.price || 0) * Number(item.quantity || 0);
+          hsnMap[key].cgst    += Number(item.cgstAmount || 0);
+          hsnMap[key].sgst    += Number(item.sgstAmount || 0);
         });
 
         Object.values(hsnMap).forEach((d, idx) => {
           y = guard(doc, y, taxRowH);
-          if (idx % 2 !== 0) fillRect(doc, MARGIN, y, CONTENT_W, taxRowH, C_BG_ROW);
+          fillRect(doc, MARGIN, y, CONTENT_W, taxRowH, idx % 2 === 0 ? C_WHITE : C_BG_ROW);
           const rowVals = [
-            d.hsn,
-            fmt(d.taxable),
-            d.cgstRate ? `${d.cgstRate}%` : '0%',
-            fmt(d.cgst),
-            d.sgstRate ? `${d.sgstRate}%` : '0%',
-            fmt(d.sgst),
+            d.hsn, fmt(d.taxable),
+            d.cgstRate ? `${d.cgstRate}%` : '0%', fmt(d.cgst),
+            d.sgstRate ? `${d.sgstRate}%` : '0%', fmt(d.sgst),
             fmt(d.cgst + d.sgst),
           ];
           taxColsX.forEach((c, i) => {
-            if (i > 0) vline(doc, c.x, y, y + taxRowH);
+            if (i > 0) vline(doc, c.x, y, y + taxRowH, C_BORDER2);
             cell(doc, rowVals[i], c.x, y, c.w, taxRowH,
-              { fontSize: 9, align: 'center', vPad: (taxRowH - 11) / 2 });
+              { fontSize: 8.5, align: 'center', vPad: (taxRowH - 10) / 2 });
           });
           hline(doc, MARGIN, y + taxRowH, CONTENT_W, C_BORDER2);
           y += taxRowH;
         });
+
+        strokeRect(doc, MARGIN, y - Object.keys(hsnMap).length * taxRowH - taxRowH, CONTENT_W,
+          Object.keys(hsnMap).length * taxRowH + taxRowH, C_BORDER, 0.6);
 
         y += 10;
         hline(doc, MARGIN, y, CONTENT_W, C_BORDER);
         y += 10;
       }
 
-      // ── 9. Bank details + Terms ─────────────────────────────────────────
-      y = guard(doc, y, 100);
+      // ── 10. Bank details + Terms ──────────────────────────────────────────
+      y = guard(doc, y, 110);
 
-      const bankW  = CONTENT_W * 0.52;
-      const termsW = CONTENT_W - bankW - 12;
-      const termsX = MARGIN + bankW + 12;
+      const bankW  = CONTENT_W * 0.50;
+      const termsW = CONTENT_W - bankW - 1;
+      const termsX = MARGIN + bankW + 1;
 
       const bankStartY = y;
 
-      doc.font('Helvetica-Bold').fontSize(9.5).fillColor(C_NAVY).text('Bank Details', MARGIN, y);
-      y += 14;
+      // Bank details heading
+      fillRect(doc, MARGIN, y, bankW, 18, C_BG_HDR);
+      strokeRect(doc, MARGIN, y, bankW, 18, C_BORDER);
+      doc.font('Helvetica-Bold').fontSize(9).fillColor(C_NAVY)
+        .text('BANK DETAILS', MARGIN + 6, y + 4, { width: bankW - 12 });
 
+      // Terms heading
+      fillRect(doc, termsX, y, termsW, 18, C_BG_HDR);
+      strokeRect(doc, termsX, y, termsW, 18, C_BORDER);
+      doc.font('Helvetica-Bold').fontSize(9).fillColor(C_NAVY)
+        .text('TERMS & CONDITIONS', termsX + 6, y + 4, { width: termsW - 12 });
+      y += 18;
+
+      const bankDataStartY = y;
       const bankLines = [
-        settings.bankAccountName   ? `Name: ${settings.bankAccountName}`     : '',
-        settings.bankAccountNumber ? `A/C No.: ${settings.bankAccountNumber}` : '',
-        settings.bankIfsc          ? `IFSC: ${settings.bankIfsc}`            : '',
-        settings.bankName          ? `Bank: ${settings.bankName}`            : '',
-        settings.bankBranch        ? `Branch: ${settings.bankBranch}`        : '',
-        settings.upiId             ? `UPI: ${settings.upiId}`               : '',
-        settings.upiPhone          ? `UPI Ph: ${settings.upiPhone}`         : '',
+        settings.bankAccountName   ? { label: 'Account Name', val: settings.bankAccountName }   : null,
+        settings.bankAccountNumber ? { label: 'A/C Number',   val: settings.bankAccountNumber } : null,
+        settings.bankIfsc          ? { label: 'IFSC Code',    val: settings.bankIfsc }          : null,
+        settings.bankName          ? { label: 'Bank',         val: settings.bankName }          : null,
+        settings.bankBranch        ? { label: 'Branch',       val: settings.bankBranch }        : null,
+        settings.upiId             ? { label: 'UPI ID',       val: settings.upiId }             : null,
+        settings.upiPhone          ? { label: 'UPI Phone',    val: settings.upiPhone }          : null,
       ].filter(Boolean);
 
-      bankLines.forEach((line) => {
-        doc.font('Helvetica').fontSize(9).fillColor(C_DARK).text(line, MARGIN, y, { width: bankW });
-        y += 13;
+      const bankBoxH = Math.max(bankLines.length * 14 + 10, 70);
+      fillRect(doc, MARGIN, y, bankW, bankBoxH, '#fafcff');
+      strokeRect(doc, MARGIN, y, bankW, bankBoxH, C_BORDER);
+
+      let bkY = y + 7;
+      bankLines.forEach(({ label, val }) => {
+        doc.font('Helvetica').fontSize(8).fillColor(C_LIGHT)
+          .text(`${label}:`, MARGIN + 8, bkY, { width: 68 });
+        doc.font('Helvetica-Bold').fontSize(8.5).fillColor(C_DARK)
+          .text(val, MARGIN + 78, bkY, { width: bankW - 86 });
+        bkY += 14;
       });
 
       // Terms & Conditions
       const terms = settings.termsAndConditions || [];
-      if (terms.length > 0) {
-        let ty = bankStartY;
-        doc.font('Helvetica-Bold').fontSize(9.5).fillColor(C_NAVY)
-          .text('Terms & Conditions', termsX, ty, { width: termsW });
-        ty += 14;
-        terms.forEach((t, i) => {
-          doc.font('Helvetica').fontSize(8.5).fillColor(C_MID)
-            .text(`${i + 1}. ${t}`, termsX, ty, { width: termsW });
-          ty += 13;
-        });
-        y = Math.max(y, ty);
-      }
+      const termsBoxH = Math.max(terms.length * 14 + 10, 70);
+      fillRect(doc, termsX, bankDataStartY, termsW, termsBoxH, '#fafcff');
+      strokeRect(doc, termsX, bankDataStartY, termsW, termsBoxH, C_BORDER);
 
-      y += 12;
+      let tmY = bankDataStartY + 7;
+      terms.forEach((t, i) => {
+        doc.font('Helvetica').fontSize(8.5).fillColor(C_MID)
+          .text(`${i + 1}.  ${t}`, termsX + 8, tmY, { width: termsW - 16 });
+        tmY += 14;
+      });
+
+      y = bankDataStartY + Math.max(bankBoxH, termsBoxH) + 12;
+
       hline(doc, MARGIN, y, CONTENT_W, C_BORDER);
       y += 12;
 
-      // ── 10. Authorized signatory ────────────────────────────────────────
-      y = guard(doc, y, 60);
+      // ── 11. Authorized signatory ──────────────────────────────────────────
+      y = guard(doc, y, 65);
 
-      const sigW = 180;
+      const sigW = 190;
       const sigX = PAGE_W - MARGIN - sigW;
-      doc.font('Helvetica-Bold').fontSize(9).fillColor(C_NAVY)
-        .text(`For ${settings.businessName || ''}`, sigX, y, { width: sigW, align: 'center' });
-      y += 44;
-      hline(doc, sigX, y, sigW, C_MID);
-      y += 8;
-      doc.font('Helvetica').fontSize(8.5).fillColor(C_LIGHT)
-        .text('Authorized Signatory', sigX, y, { width: sigW, align: 'center' });
 
-      // ── 11. Footer ──────────────────────────────────────────────────────
-      doc.font('Helvetica').fontSize(7.5).fillColor(C_BORDER)
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(C_NAVY)
+        .text(`For  ${settings.businessName || ''}`, sigX, y, { width: sigW, align: 'center' });
+      y += 46;
+      hline(doc, sigX, y, sigW, C_MID, 0.8);
+      y += 7;
+      doc.font('Helvetica').fontSize(8).fillColor(C_LIGHT)
+        .text('Authorised Signatory', sigX, y, { width: sigW, align: 'center' });
+
+      // ── 12. Bottom bar + footer ───────────────────────────────────────────
+      fillRect(doc, 0, PAGE_H - 16, PAGE_W, 3, C_ORANGE);
+      fillRect(doc, 0, PAGE_H - 13, PAGE_W, 13, C_NAVY);
+      doc.font('Helvetica').fontSize(7).fillColor('rgba(255,255,255,0.6)')
         .text('This is a computer-generated document and does not require a physical signature.',
-          MARGIN, PAGE_H - 20, { width: CONTENT_W, align: 'center' });
+          MARGIN, PAGE_H - 10, { width: CONTENT_W, align: 'center' });
 
       doc.end();
     } catch (err) {

@@ -1,22 +1,39 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { apiFetch, getErrorMessage } from '@/lib/api';
 import { CUSTOMER_TOKEN_KEY } from '@/lib/session';
 
 export default function AddToCartPanel({ productId, stock }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Show "Added!" banner if login just completed and added this product
+  useEffect(() => {
+    if (searchParams.get('cartAdded') === '1') {
+      setAdded(true);
+      setTimeout(() => setAdded(false), 4000);
+      // Clean URL param without reload
+      const url = new URL(window.location.href);
+      url.searchParams.delete('cartAdded');
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, [searchParams]);
+
   const handleAddToCart = async () => {
     const token = window.localStorage.getItem(CUSTOMER_TOKEN_KEY);
 
     if (!token) {
-      router.push('/login?redirect=/cart');
+      // Save what they were trying to add so we can add it after login
+      sessionStorage.setItem('pendingCartAdd', JSON.stringify({ productId, quantity }));
+      // Redirect back to this product page after login (not cart) so they see the "Added!" confirmation
+      const returnUrl = window.location.pathname;
+      router.push(`/login?redirect=${encodeURIComponent(returnUrl)}`);
       return;
     }
 
@@ -32,11 +49,20 @@ export default function AddToCartPanel({ productId, stock }) {
       });
 
       setAdded(true);
-      // Tell navbar to refresh cart count
       window.dispatchEvent(new CustomEvent('cart:updated'));
       setTimeout(() => setAdded(false), 3000);
     } catch (submitError) {
-      setError(getErrorMessage(submitError));
+      const msg = getErrorMessage(submitError);
+      // Token expired or invalid — clear it and redirect to login
+      if (submitError?.status === 401 || msg?.toLowerCase().includes('unauthorized') || msg?.toLowerCase().includes('token')) {
+        window.localStorage.removeItem(CUSTOMER_TOKEN_KEY);
+        window.dispatchEvent(new CustomEvent('auth:updated'));
+        sessionStorage.setItem('pendingCartAdd', JSON.stringify({ productId, quantity }));
+        const returnUrl = window.location.pathname;
+        router.push(`/login?redirect=${encodeURIComponent(returnUrl)}`);
+        return;
+      }
+      setError(msg);
     } finally {
       setIsSubmitting(false);
     }

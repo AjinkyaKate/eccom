@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import AddToCartPanel from '@/components/AddToCartPanel';
 import SectionHeading from '@/components/SectionHeading';
@@ -87,7 +88,9 @@ export default async function ProductPage({ params }) {
               <p className="mt-2 text-sm leading-7 text-palette-dark/75">{product.description}</p>
             </div>
           )}
-          <AddToCartPanel productId={product._id} stock={product.stock} />
+          <Suspense fallback={null}>
+            <AddToCartPanel productId={product._id} stock={product.stock} />
+          </Suspense>
         </div>
       </div>
     </div>

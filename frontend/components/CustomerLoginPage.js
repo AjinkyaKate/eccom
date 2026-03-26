@@ -59,8 +59,37 @@ export default function CustomerLoginPage({ redirectTo = '/cart' }) {
         body: JSON.stringify({ phone, otp }),
       });
 
-      window.localStorage.setItem(CUSTOMER_TOKEN_KEY, response.data.token);
-      router.push(redirectTo);
+      const token = response.data.token;
+      window.localStorage.setItem(CUSTOMER_TOKEN_KEY, token);
+
+      // Tell header to immediately refresh customer + cart state
+      window.dispatchEvent(new CustomEvent('auth:updated'));
+
+      // If user was trying to add a product before being asked to login,
+      // add it to cart now so they don't lose their action
+      const pendingRaw = sessionStorage.getItem('pendingCartAdd');
+      let destination = redirectTo;
+
+      if (pendingRaw) {
+        try {
+          const pending = JSON.parse(pendingRaw);
+          sessionStorage.removeItem('pendingCartAdd');
+          await apiFetch('/api/cart/add', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ productId: pending.productId, quantity: pending.quantity }),
+          });
+          window.dispatchEvent(new CustomEvent('cart:updated'));
+          // If redirectTo is a product page, add ?cartAdded=1 so the panel shows "Added!" banner
+          if (redirectTo.startsWith('/products/')) {
+            destination = `${redirectTo}?cartAdded=1`;
+          }
+        } catch {
+          // Cart add failed — still redirect, user can retry
+        }
+      }
+
+      router.push(destination);
     } catch (verifyError) {
       setError(getErrorMessage(verifyError));
     } finally {
