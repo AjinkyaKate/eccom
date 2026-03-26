@@ -15,6 +15,15 @@ export default function SiteHeaderClient() {
   const [menuOpen, setMenuOpen] = useState(false);
   const searchRef = useRef(null);
 
+  const refreshCartCount = async () => {
+    const token = window.localStorage.getItem(CUSTOMER_TOKEN_KEY);
+    if (!token) return;
+    try {
+      const res = await apiFetch('/api/cart', { headers: { Authorization: `Bearer ${token}` } });
+      setCartCount(res?.data?.cart?.totalItems || 0);
+    } catch {}
+  };
+
   useEffect(() => {
     let isMounted = true;
 
@@ -38,6 +47,12 @@ export default function SiteHeaderClient() {
 
     loadSession();
     return () => { isMounted = false; };
+  }, []);
+
+  // Update cart count instantly when item is added from product page
+  useEffect(() => {
+    window.addEventListener('cart:updated', refreshCartCount);
+    return () => window.removeEventListener('cart:updated', refreshCartCount);
   }, []);
 
   // Close search dropdown on outside click
@@ -91,8 +106,15 @@ export default function SiteHeaderClient() {
           <Link href="/products" className="rounded-full px-4 py-2 transition hover:bg-palette-lighter hover:text-palette-primary">
             Products
           </Link>
-          <Link href="/cart" className="rounded-full px-4 py-2 transition hover:bg-palette-lighter hover:text-palette-primary">
-            {cartLabel}
+          <Link href="/cart" className="relative rounded-full p-2 transition hover:bg-palette-lighter hover:text-palette-primary" aria-label={cartLabel}>
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13l-1.5 6h13M7 13H5.4M10 21a1 1 0 100-2 1 1 0 000 2zm8 0a1 1 0 100-2 1 1 0 000 2z" />
+            </svg>
+            {cartCount > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-palette-primary text-[10px] font-bold text-white">
+                {cartCount > 99 ? '99+' : cartCount}
+              </span>
+            )}
           </Link>
           <Link href="/orders" className="rounded-full px-4 py-2 transition hover:bg-palette-lighter hover:text-palette-primary">
             My Orders

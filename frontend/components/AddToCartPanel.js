@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch, getErrorMessage } from '@/lib/api';
@@ -9,7 +8,7 @@ import { CUSTOMER_TOKEN_KEY } from '@/lib/session';
 export default function AddToCartPanel({ productId, stock }) {
   const router = useRouter();
   const [quantity, setQuantity] = useState(1);
-  const [message, setMessage] = useState('');
+  const [added, setAdded] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -23,21 +22,19 @@ export default function AddToCartPanel({ productId, stock }) {
 
     setIsSubmitting(true);
     setError('');
-    setMessage('');
+    setAdded(false);
 
     try {
       await apiFetch('/api/cart/add', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          productId,
-          quantity,
-        }),
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ productId, quantity }),
       });
 
-      setMessage('Added to cart successfully.');
+      setAdded(true);
+      // Tell navbar to refresh cart count
+      window.dispatchEvent(new CustomEvent('cart:updated'));
+      setTimeout(() => setAdded(false), 3000);
     } catch (submitError) {
       setError(getErrorMessage(submitError));
     } finally {
@@ -54,7 +51,7 @@ export default function AddToCartPanel({ productId, stock }) {
           min="1"
           max={stock || 1}
           value={quantity}
-          onChange={(event) => setQuantity(Math.max(1, Number(event.target.value || 1)))}
+          onChange={(e) => setQuantity(Math.max(1, Number(e.target.value || 1)))}
           className="w-28 rounded-2xl border border-palette-light bg-palette-mist px-4 py-3 text-base text-palette-dark outline-none transition focus:border-palette-primary"
         />
         <button
@@ -65,15 +62,22 @@ export default function AddToCartPanel({ productId, stock }) {
         >
           {stock <= 0 ? 'Out of stock' : isSubmitting ? 'Adding...' : 'Add to cart'}
         </button>
-        <Link
-          href="/cart"
-          className="rounded-full border border-palette-primary px-6 py-3 text-sm font-semibold text-palette-primary transition hover:bg-palette-lighter"
-        >
-          Open cart
-        </Link>
       </div>
-      {message ? <p className="mt-4 text-sm font-semibold text-emerald-700">{message}</p> : null}
-      {error ? <p className="mt-4 text-sm font-semibold text-red-700">{error}</p> : null}
+
+      {added && (
+        <div className="mt-4 flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+          <svg className="h-4 w-4 shrink-0 text-emerald-600" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+          <p className="text-sm font-semibold text-emerald-700">
+            Added! View your cart in the top navigation bar.
+          </p>
+        </div>
+      )}
+
+      {error && (
+        <p className="mt-4 text-sm font-semibold text-red-700">{error}</p>
+      )}
     </div>
   );
 }
