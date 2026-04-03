@@ -1,5 +1,4 @@
 const mongoose = require('mongoose');
-const Category = require('../models/Category');
 const Product = require('../models/Product');
 const { parsePagination, buildPaginationMeta } = require('../utils/pagination.util');
 
@@ -140,9 +139,9 @@ const resolveCategoryFilter = async (categoryValue) => {
   return category ? category._id : '__no_match__';
 };
 
-const buildListStages = async (query, options = {}) => {
+const buildListStages = (query, options = {}) => {
   const { includeInactive = false } = options;
-  const { category, search, sort, minPrice, maxPrice, inStock, isFeatured, isActive } = query;
+  const { search, sort, isFeatured, isActive } = query;
 
   const match = {};
 
@@ -150,33 +149,13 @@ const buildListStages = async (query, options = {}) => {
     match.isActive = true;
   } else {
     const isActiveFilter = parseBoolean(isActive);
-    if (isActiveFilter !== undefined) {
-      match.isActive = isActiveFilter;
-    }
-  }
-
-  const inStockFilter = parseBoolean(inStock);
-  if (inStockFilter === true) {
-    match.stock = { $gt: 0 };
-  } else if (inStockFilter === false) {
-    match.stock = 0;
+    if (isActiveFilter !== undefined) match.isActive = isActiveFilter;
   }
 
   const featuredFilter = parseBoolean(isFeatured);
-  if (featuredFilter !== undefined) {
-    match.isFeatured = featuredFilter;
-  }
+  if (featuredFilter !== undefined) match.isFeatured = featuredFilter;
 
-  const categoryId = await resolveCategoryFilter(category);
-  if (categoryId === '__no_match__') {
-    return [{ $match: { _id: null } }];
-  }
-
-  if (categoryId) {
-    match.category = new mongoose.Types.ObjectId(categoryId);
-  }
-
-  const stages = [{ $match: match }, buildComputedFieldsStage()];
+  const stages = [{ $match: match }];
 
   const normalizedSearch = typeof search === 'string' ? search.trim() : '';
   if (normalizedSearch) {
@@ -186,53 +165,19 @@ const buildListStages = async (query, options = {}) => {
         $or: [
           { name: { $regex: safeSearch, $options: 'i' } },
           { shortDescription: { $regex: safeSearch, $options: 'i' } },
-          { description: { $regex: safeSearch, $options: 'i' } },
           { tags: { $elemMatch: { $regex: safeSearch, $options: 'i' } } },
         ],
       },
     });
   }
 
-  const priceClauses = [];
-  const parsedMinPrice = parseNumber(minPrice);
-  const parsedMaxPrice = parseNumber(maxPrice);
-
-  if (parsedMinPrice !== undefined) {
-    priceClauses.push({ finalPrice: { $gte: parsedMinPrice } });
-  }
-
-  if (parsedMaxPrice !== undefined) {
-    priceClauses.push({ finalPrice: { $lte: parsedMaxPrice } });
-  }
-
-  if (priceClauses.length === 1) {
-    stages.push({ $match: priceClauses[0] });
-  } else if (priceClauses.length > 1) {
-    stages.push({ $match: { $and: priceClauses } });
-  }
-
   const sortMap = {
-    price_asc: { finalPrice: 1, createdAt: -1 },
-    price_desc: { finalPrice: -1, createdAt: -1 },
     newest: { createdAt: -1 },
-    popular: { soldCount: -1, ratingAverage: -1, createdAt: -1 },
+    popular: { soldCount: -1, createdAt: -1 },
   };
 
-  stages.push({
-    $addFields: {
-      ratingAverage: '$rating.average',
-    },
-  });
-
   stages.push({ $sort: sortMap[sort] || { createdAt: -1 } });
-  stages.push(buildCategoryLookupStage());
-  stages.push({
-    $unwind: {
-      path: '$category',
-      preserveNullAndEmptyArrays: true,
-    },
-  });
-  stages.push(buildProductProjectionStage());
+  stages.push({ $project: { __v: 0 } });
 
   return stages;
 };
@@ -243,16 +188,6 @@ const pickProductPayload = (body = {}) => {
   if (body.name !== undefined) payload.name = body.name;
   if (body.description !== undefined) payload.description = body.description;
   if (body.shortDescription !== undefined) payload.shortDescription = body.shortDescription;
-  if (body.category !== undefined) payload.category = body.category;
-  if (body.price !== undefined) payload.price = parseNumber(body.price);
-  if (body.discountPrice !== undefined) {
-    payload.discountPrice =
-      body.discountPrice === null || body.discountPrice === ''
-        ? null
-        : parseNumber(body.discountPrice);
-  }
-  if (body.stock !== undefined) payload.stock = parseNumber(body.stock);
-  if (body.sku !== undefined) payload.sku = body.sku;
   if (body.mainImage !== undefined) payload.mainImage = body.mainImage;
   if (body.images !== undefined) payload.images = normalizeStringArray(body.images);
   if (body.tags !== undefined) payload.tags = normalizeStringArray(body.tags);
@@ -264,50 +199,32 @@ const pickProductPayload = (body = {}) => {
   const active = parseBoolean(body.isActive);
   if (active !== undefined) payload.isActive = active;
 
+  if (Array.isArray(body.variants)) {
+    payload.variants = body.variants.map((v) => ({
+      name: v.name,
+      price: parseNumber(v.price) ?? 0,
+      discountPrice: v.discountPrice === '' || v.discountPrice == null ? null : parseNumber(v.discountPrice),
+      stock: parseNumber(v.stock) ?? 0,
+      sku: v.sku || undefined,
+      isActive: v.isActive !== false,
+    }));
+  }
+
   return payload;
 };
 
-const validateBaseProductPayload = async (payload, { isUpdate = false } = {}) => {
-  if (!isUpdate) {
-    const requiredFields = ['name', 'category', 'price'];
-    const missingField = requiredFields.find(
-      (field) => payload[field] === undefined || payload[field] === null || payload[field] === ''
-    );
-
-    if (missingField) {
-      return `${missingField} is required`;
-    }
+const validateBaseProductPayload = (payload, { isUpdate = false } = {}) => {
+  if (!isUpdate && (!payload.name || payload.name.trim() === '')) {
+    return 'Product name is required';
   }
 
-  if (payload.price !== undefined && payload.price < 0) {
-    return 'Price cannot be negative';
-  }
-
-  if (payload.stock !== undefined && payload.stock < 0) {
-    return 'Stock cannot be negative';
-  }
-
-  if (
-    payload.discountPrice !== undefined &&
-    payload.discountPrice !== null &&
-    payload.price !== undefined &&
-    payload.discountPrice >= payload.price
-  ) {
-    return 'Discount price must be less than regular price';
-  }
-
-  if (payload.category !== undefined) {
-    if (!mongoose.Types.ObjectId.isValid(payload.category)) {
-      return 'Invalid category';
-    }
-
-    const category = await Category.findById(payload.category).select('_id isActive');
-    if (!category) {
-      return 'Category not found';
-    }
-
-    if (!category.isActive) {
-      return 'Cannot assign product to an inactive category';
+  if (Array.isArray(payload.variants)) {
+    for (const v of payload.variants) {
+      if (!v.name || v.name.trim() === '') return 'Each variant must have a name';
+      if (v.price === undefined || v.price < 0) return 'Each variant must have a valid price';
+      if (v.discountPrice !== null && v.discountPrice !== undefined && v.discountPrice >= v.price) {
+        return `Variant "${v.name}": discount price must be less than regular price`;
+      }
     }
   }
 
@@ -317,7 +234,7 @@ const validateBaseProductPayload = async (payload, { isUpdate = false } = {}) =>
 const getProducts = async (req, res) => {
   try {
     const { page, limit, skip } = parsePagination(req.query);
-    const baseStages = await buildListStages(req.query);
+    const baseStages = buildListStages(req.query);
     const itemsPipeline = [...baseStages, { $skip: skip }, { $limit: limit }];
     const countPipeline = [...baseStages, { $count: 'total' }];
 
@@ -355,7 +272,7 @@ const searchProducts = async (req, res) => {
       });
     }
 
-    const baseStages = await buildListStages({ ...req.query, search: q });
+    const baseStages = buildListStages({ ...req.query, search: q });
     const products = await Product.aggregate([...baseStages, { $limit: 20 }]);
 
     res.status(200).json({
@@ -409,7 +326,7 @@ const getProductBySlug = async (req, res) => {
 const getAdminProducts = async (req, res) => {
   try {
     const { page, limit, skip } = parsePagination(req.query);
-    const baseStages = await buildListStages(req.query, { includeInactive: true });
+    const baseStages = buildListStages(req.query, { includeInactive: true });
     const itemsPipeline = [...baseStages, { $skip: skip }, { $limit: limit }];
     const countPipeline = [...baseStages, { $count: 'total' }];
 
@@ -440,55 +357,27 @@ const getAdminProducts = async (req, res) => {
 const createProduct = async (req, res) => {
   try {
     const payload = pickProductPayload(req.body);
-    const validationError = await validateBaseProductPayload(payload);
+    const validationError = validateBaseProductPayload(payload);
 
     if (validationError) {
-      return res.status(400).json({
-        success: false,
-        message: validationError,
-      });
+      return res.status(400).json({ success: false, message: validationError });
     }
 
-    if (!payload.sku) {
-      const base = (payload.name || 'PROD').replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 6);
-      payload.sku = `${base}-${Date.now().toString().slice(-5)}`;
-    }
-    if (payload.stock === undefined || payload.stock === null) {
-      payload.stock = 0;
-    }
-
-    const product = await Product.create({
-      ...payload,
-      createdBy: req.user.userId,
-    });
-
-    const populatedProduct = await Product.findById(product._id)
-      .populate('category', 'name slug image isActive')
-      .select('-__v');
+    const product = await Product.create({ ...payload, createdBy: req.user.userId });
+    const saved = await Product.findById(product._id).select('-__v');
 
     res.status(201).json({
       success: true,
       message: 'Product created successfully',
-      data: {
-        product: populatedProduct,
-      },
+      data: { product: saved },
     });
   } catch (error) {
     console.error('Create Product Error:', error);
-
     if (error.code === 11000) {
       const duplicateField = Object.keys(error.keyPattern || {})[0] || 'field';
-      return res.status(409).json({
-        success: false,
-        message: `${duplicateField} already exists`,
-      });
+      return res.status(409).json({ success: false, message: `${duplicateField} already exists` });
     }
-
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
 
@@ -497,75 +386,36 @@ const updateProduct = async (req, res) => {
     const { id } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid product id',
-      });
+      return res.status(400).json({ success: false, message: 'Invalid product id' });
     }
 
     const product = await Product.findById(id);
-
     if (!product) {
-      return res.status(404).json({
-        success: false,
-        message: 'Product not found',
-      });
+      return res.status(404).json({ success: false, message: 'Product not found' });
     }
 
     const payload = pickProductPayload(req.body);
-    const mergedPayload = {
-      price: payload.price !== undefined ? payload.price : product.price,
-      discountPrice:
-        payload.discountPrice !== undefined ? payload.discountPrice : product.discountPrice,
-      stock: payload.stock !== undefined ? payload.stock : product.stock,
-      category: payload.category !== undefined ? payload.category : product.category.toString(),
-    };
-
-    const validationError = await validateBaseProductPayload(
-      { ...payload, ...mergedPayload },
-      { isUpdate: true }
-    );
-
+    const validationError = validateBaseProductPayload(payload, { isUpdate: true });
     if (validationError) {
-      return res.status(400).json({
-        success: false,
-        message: validationError,
-      });
+      return res.status(400).json({ success: false, message: validationError });
     }
 
-    Object.entries(payload).forEach(([key, value]) => {
-      product[key] = value;
-    });
-
+    Object.entries(payload).forEach(([key, value]) => { product[key] = value; });
     await product.save();
 
-    const updatedProduct = await Product.findById(product._id)
-      .populate('category', 'name slug image isActive')
-      .select('-__v');
-
+    const updated = await Product.findById(product._id).select('-__v');
     res.status(200).json({
       success: true,
       message: 'Product updated successfully',
-      data: {
-        product: updatedProduct,
-      },
+      data: { product: updated },
     });
   } catch (error) {
     console.error('Update Product Error:', error);
-
     if (error.code === 11000) {
       const duplicateField = Object.keys(error.keyPattern || {})[0] || 'field';
-      return res.status(409).json({
-        success: false,
-        message: `${duplicateField} already exists`,
-      });
+      return res.status(409).json({ success: false, message: `${duplicateField} already exists` });
     }
-
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
 

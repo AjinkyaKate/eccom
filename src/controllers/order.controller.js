@@ -1,13 +1,20 @@
 const mongoose = require('mongoose');
+const { v4: uuidv4 } = require('uuid');
 const Cart = require('../models/Cart');
 const Order = require('../models/Order');
 const Product = require('../models/Product');
 const User = require('../models/User');
 const BusinessSettings = require('../models/BusinessSettings');
+const PaymentLink = require('../models/PaymentLink');
 const { parsePagination, buildPaginationMeta } = require('../utils/pagination.util');
 const { generateOrderNumber, generateInvoiceNumber } = require('../utils/orderNumber.util');
 const { validatePhoneNumber, formatPhoneNumber } = require('../utils/otp.util');
 const { generateInvoicePdf } = require('../services/invoice.service');
+const { addDebit, checkOrderBlock } = require('../services/ledger.service');
+const { createPaymentLink } = require('../services/razorpay.service');
+const { sendInvoiceMessage, sendOrderStatusUpdate } = require('../services/billing.whatsapp.service');
+
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 
 const AVAILABLE_PAYMENT_METHODS = ['COD'];
 const BLOCKING_CHECKOUT_ISSUES = new Set(['empty_cart', 'product_unavailable']);
@@ -435,6 +442,16 @@ const checkout = async (req, res) => {
       });
     }
 
+    // Hard block — check outstanding balance before allowing checkout
+    const blockCheck = await checkOrderBlock(summary.user.phone);
+    if (blockCheck.blocked) {
+      return res.status(403).json({
+        success: false,
+        message: blockCheck.reason,
+        data: { outstandingBalance: blockCheck.outstandingBalance, creditLimit: blockCheck.creditLimit },
+      });
+    }
+
     if (!summary.canCheckout) {
       return res.status(409).json({
         success: false,
@@ -524,6 +541,75 @@ const checkout = async (req, res) => {
       order,
       cart: summary.cart,
       checkoutItems: summary.items,
+    });
+
+    // ── Post-order: ledger debit + payment link + WhatsApp (non-blocking) ──
+    setImmediate(async () => {
+      try {
+        const settings = await BusinessSettings.findOne().lean();
+        const invoiceNumber = order.invoice?.invoiceNumber || order.orderNumber;
+        const orderTotal = order.pricing?.total || 0;
+
+        // 1. Add debit to customer ledger
+        const ledger = await addDebit({
+          phone: summary.user.phone,
+          name: summary.user.name,
+          userId: summary.user._id,
+          amount: orderTotal,
+          description: `Order #${order.orderNumber}`,
+          orderId: order._id,
+          invoiceNumber,
+          createdByRole: 'system',
+        });
+
+        // 2. Create payment link
+        const token = uuidv4();
+        const callbackUrl = `${FRONTEND_URL}/pay/${token}`;
+        const link = new PaymentLink({
+          token,
+          ledger: ledger._id,
+          orderId: order._id,
+          customerPhone: summary.user.phone,
+          customerName: summary.user.name,
+          amount: orderTotal,
+          description: `Invoice #${invoiceNumber}`,
+          status: 'active',
+          amountPaid: 0,
+        });
+
+        try {
+          const rzpLink = await createPaymentLink({
+            amount: orderTotal,
+            customerName: summary.user.name,
+            customerPhone: summary.user.phone,
+            description: `Invoice #${invoiceNumber}`,
+            referenceId: token,
+            callbackUrl,
+          });
+          link.razorpayPaymentLinkId = rzpLink.id;
+          link.razorpayPaymentLinkUrl = rzpLink.short_url || callbackUrl;
+          link.razorpayShortUrl = rzpLink.short_url;
+        } catch (_) {
+          link.razorpayPaymentLinkUrl = callbackUrl;
+        }
+        await link.save();
+
+        // 3. Send WhatsApp invoice message
+        const paymentUrl = `${FRONTEND_URL}/pay/${token}`;
+        await sendInvoiceMessage({
+          phone: summary.user.phone,
+          customerName: summary.user.name,
+          businessName: settings?.businessName || '',
+          invoiceNumber,
+          amountDue: orderTotal,
+          paymentLink: paymentUrl,
+          ledgerId: ledger._id,
+          orderId: order._id,
+          paymentLinkId: link._id,
+        });
+      } catch (bgErr) {
+        console.error('[checkout] Background billing task failed:', bgErr.message);
+      }
     });
 
     res.status(201).json({
@@ -897,6 +983,27 @@ const updateOrderStatus = async (req, res) => {
 
     await order.save();
 
+    const customerPhone = order.customer?.phone ? formatPhoneNumber(order.customer.phone) : '';
+    if (customerPhone && validatePhoneNumber(customerPhone)) {
+      setImmediate(async () => {
+        try {
+          const settings = await BusinessSettings.findOne().lean();
+          await sendOrderStatusUpdate({
+            phone: customerPhone,
+            customerName: order.customer?.name,
+            businessName: settings?.businessName || '',
+            orderNumber: order.orderNumber,
+            status: nextStatus.replace(/_/g, ' '),
+            statusNote: note,
+            orderId: order._id,
+            sentBy: req.user.userId,
+          });
+        } catch (whatsAppError) {
+          console.error('[updateOrderStatus] WhatsApp update failed:', whatsAppError.message);
+        }
+      });
+    }
+
     res.status(200).json({
       success: true,
       message: 'Order status updated successfully',
@@ -1146,6 +1253,74 @@ const adminCreateOrder = async (req, res) => {
       success: true,
       message: 'Order created successfully',
       data: { order },
+    });
+
+    // ── Background: ledger debit + payment link + WhatsApp ──────────────────
+    setImmediate(async () => {
+      try {
+        const settings = await BusinessSettings.findOne().lean();
+        const invoiceNumber = order.invoice?.invoiceNumber || order.orderNumber;
+        const orderTotal    = order.pricing?.total || 0;
+
+        const ledger = await addDebit({
+          phone:          order.customer.phone,
+          name:           order.customer.name,
+          userId:         order.customer.user || undefined,
+          amount:         orderTotal,
+          description:    `Order #${order.orderNumber}`,
+          orderId:        order._id,
+          invoiceNumber,
+          createdBy:      req.user?.userId,
+          createdByRole:  'admin',
+        });
+
+        const token       = uuidv4();
+        const callbackUrl = `${FRONTEND_URL}/pay/${token}`;
+        const link        = new PaymentLink({
+          token,
+          ledger:         ledger._id,
+          orderId:        order._id,
+          customerPhone:  order.customer.phone,
+          customerName:   order.customer.name,
+          amount:         orderTotal,
+          description:    `Invoice #${invoiceNumber}`,
+          status:         'active',
+          amountPaid:     0,
+          createdBy:      req.user?.userId,
+        });
+
+        try {
+          const rzpLink = await createPaymentLink({
+            amount:       orderTotal,
+            customerName: order.customer.name,
+            customerPhone:order.customer.phone,
+            description:  `Invoice #${invoiceNumber}`,
+            referenceId:  token,
+            callbackUrl,
+          });
+          link.razorpayPaymentLinkId  = rzpLink.id;
+          link.razorpayPaymentLinkUrl = rzpLink.short_url || callbackUrl;
+          link.razorpayShortUrl       = rzpLink.short_url;
+        } catch (_) {
+          link.razorpayPaymentLinkUrl = callbackUrl;
+        }
+        await link.save();
+
+        await sendInvoiceMessage({
+          phone:          order.customer.phone,
+          customerName:   order.customer.name,
+          businessName:   settings?.businessName || '',
+          invoiceNumber,
+          amountDue:      orderTotal,
+          paymentLink:    `${FRONTEND_URL}/pay/${token}`,
+          ledgerId:       ledger._id,
+          orderId:        order._id,
+          paymentLinkId:  link._id,
+          sentBy:         req.user?.userId,
+        });
+      } catch (bgErr) {
+        console.error('[adminCreateOrder] Background billing task failed:', bgErr.message);
+      }
     });
   } catch (err) {
     console.error('Admin Create Order Error:', err);

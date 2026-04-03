@@ -45,6 +45,43 @@ class GreenAPIService {
   }
 
   /**
+   * Send file via URL (Image/Document)
+   * @param {string} phoneNumber - Recipient
+   * @param {string} url - Public URL of file
+   * @param {string} fileName - Name for the file
+   * @param {string} caption - Optional text caption
+   */
+  async sendFileByUrl(phoneNumber, fileUrl, fileName, caption = '') {
+    try {
+      const cleanPhone = phoneNumber.replace(/[\s+]/g, '');
+      const url = `${this.baseUrl}/sendFileByUrl/${this.token}`;
+
+      const payload = {
+        chatId: `${cleanPhone}@c.us`,
+        urlFile: fileUrl,
+        fileName: fileName,
+        caption: caption,
+      };
+
+      const response = await axios.post(url, payload);
+
+      if (response.data.idMessage) {
+        return {
+          success: true,
+          messageId: response.data.idMessage,
+        };
+      }
+      throw new Error('Failed to send file');
+    } catch (error) {
+      console.error('Green API File Error:', error.response?.data || error.message);
+      return {
+        success: false,
+        error: error.response?.data?.message || error.message,
+      };
+    }
+  }
+
+  /**
    * Send OTP via WhatsApp
    * @param {string} phoneNumber - Phone number with country code
    * @param {string} otp - OTP code
@@ -53,6 +90,11 @@ class GreenAPIService {
     const message = `Your verification code is: *${otp}*\n\nThis code will expire in ${process.env.OTP_EXPIRY_MINUTES} minutes.\n\nDo not share this code with anyone.`;
 
     return await this.sendMessage(phoneNumber, message);
+  }
+
+  async sendTemplate(phoneNumber, templateName, payload = {}) {
+    const templatePreview = [templateName, ...(payload.bodyParameters || [])].join(' | ');
+    return this.sendMessage(phoneNumber, templatePreview);
   }
 
   /**

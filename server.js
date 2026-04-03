@@ -28,12 +28,33 @@ app.use(
   })
 );
 
+// Raw body needed for Razorpay webhook signature verification
+app.use('/api/webhooks/razorpay', express.raw({ type: 'application/json' }), (req, res, next) => {
+  req.rawBody = req.body;
+  req.body = JSON.parse(req.body);
+  next();
+});
+
+app.use('/api/webhooks/whatsapp', express.raw({ type: 'application/json' }), (req, res, next) => {
+  req.rawBody = req.body;
+  try {
+    req.body = JSON.parse(req.body.toString('utf8'));
+  } catch (_) {
+    req.body = {};
+  }
+  next();
+});
+
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
 // Block API calls until MongoDB is ready
 const mongoose = require('mongoose');
 app.use('/api', (req, res, next) => {
+  if (req.path.startsWith('/webhooks/')) {
+    return next();
+  }
+
   if (mongoose.connection.readyState !== 1) {
     return res.status(503).json({
       success: false,
@@ -56,6 +77,22 @@ app.use('/api/cart', require('./src/routes/cart.routes'));
 app.use('/api/orders', require('./src/routes/order.routes'));
 app.use('/api/addresses', require('./src/routes/address.routes'));
 app.use('/api/admin/upload', require('./src/routes/upload.routes'));
+
+// Billing & ledger (admin)
+app.use('/api/admin/billing', require('./src/routes/ledger.routes'));
+
+// Public payment link page
+app.use('/api/pay', require('./src/routes/payment.routes'));
+
+// Razorpay webhook
+const { handleRazorpayWebhook } = require('./src/controllers/payment.controller');
+const {
+  verifyWhatsAppWebhook,
+  handleWhatsAppWebhook,
+} = require('./src/controllers/whatsapp.controller');
+app.post('/api/webhooks/razorpay', handleRazorpayWebhook);
+app.get('/api/webhooks/whatsapp', verifyWhatsAppWebhook);
+app.post('/api/webhooks/whatsapp', handleWhatsAppWebhook);
 
 // Health check route
 app.get('/health', (req, res) => {

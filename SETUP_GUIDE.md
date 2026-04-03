@@ -1,5 +1,7 @@
 # Quick Setup Guide
 
+Official Meta Cloud API setup is documented in `META_WHATSAPP_SETUP.md`. The older Green API steps below are now only a legacy fallback.
+
 ## 🚀 Step-by-Step Setup
 
 ### Step 1: Install MongoDB
@@ -64,6 +66,11 @@ mongosh
 ```env
 GREEN_API_INSTANCE_ID=1101234567          # ← Your Instance ID here
 GREEN_API_TOKEN=abc123xyz456...           # ← Your API Token here
+WHATSAPP_PROVIDER=greenapi
+OTP_EXPIRY_MINUTES=5
+OTP_MAX_ATTEMPTS=3
+OTP_MOCK_MODE=false
+FRONTEND_URL=http://localhost:3000
 ```
 
 3. **Save the file**
@@ -75,6 +82,9 @@ GREEN_API_TOKEN=abc123xyz456...           # ← Your API Token here
 ```bash
 # Install packages
 npm install
+
+# Seed WhatsApp templates used for invoice and order-status messages
+npm run seed:whatsapp
 
 # Start the server in development mode
 npm run dev

@@ -5,7 +5,7 @@ const userSchema = new mongoose.Schema(
   {
     phone: {
       type: String,
-      required: [true, 'Phone number is required'],
+      sparse: true,
       unique: true,
       trim: true,
       match: [/^\+?[1-9]\d{1,14}$/, 'Please enter a valid phone number with country code'],
@@ -16,6 +16,8 @@ const userSchema = new mongoose.Schema(
     },
     email: {
       type: String,
+      unique: true,
+      sparse: true,
       trim: true,
       lowercase: true,
     },

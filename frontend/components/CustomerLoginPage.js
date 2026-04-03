@@ -35,9 +35,9 @@ export default function CustomerLoginPage({ redirectTo = '/cart' }) {
       setStep('verify');
       if (response?.data?.debugOtp) {
         setOtp(response.data.debugOtp);
-        setMessage(`Mock OTP ready for local testing: ${response.data.debugOtp}`);
+        setMessage(`Mock OTP (local testing): ${response.data.debugOtp}`);
       } else {
-        setMessage(response?.message || 'OTP sent.');
+        setMessage(response?.message || 'OTP sent to your WhatsApp.');
       }
     } catch (requestError) {
       setError(getErrorMessage(requestError));
@@ -60,12 +60,8 @@ export default function CustomerLoginPage({ redirectTo = '/cart' }) {
 
       const token = response.data.token;
       window.localStorage.setItem(CUSTOMER_TOKEN_KEY, token);
-
-      // Tell header to immediately refresh customer + cart state
       window.dispatchEvent(new CustomEvent('auth:updated'));
 
-      // If user was trying to add a product before being asked to login,
-      // add it to cart now so they don't lose their action
       const pendingRaw = sessionStorage.getItem('pendingCartAdd');
       let destination = redirectTo;
 
@@ -79,13 +75,10 @@ export default function CustomerLoginPage({ redirectTo = '/cart' }) {
             body: JSON.stringify({ productId: pending.productId, quantity: pending.quantity }),
           });
           window.dispatchEvent(new CustomEvent('cart:updated'));
-          // If redirectTo is a product page, add ?cartAdded=1 so the panel shows "Added!" banner
           if (redirectTo.startsWith('/products/')) {
             destination = `${redirectTo}?cartAdded=1`;
           }
-        } catch {
-          // Cart add failed — still redirect, user can retry
-        }
+        } catch {}
       }
 
       router.push(destination);
@@ -109,16 +102,23 @@ export default function CustomerLoginPage({ redirectTo = '/cart' }) {
           <form className="space-y-5" onSubmit={step === 'request' ? handleSendOtp : handleVerifyOtp}>
             <div>
               <label className="mb-2 block text-sm font-semibold text-palette-dark" htmlFor="phone">
-                WhatsApp number
+                WhatsApp Number
               </label>
-              <input
-                id="phone"
-                type="tel"
-                value={phone}
-                onChange={(event) => setPhone(event.target.value)}
-                placeholder="+91 98765 43210"
-                className="w-full rounded-2xl border border-palette-light bg-white px-4 py-3 text-base text-palette-dark outline-none transition focus:border-palette-primary"
-              />
+              <div className="flex items-center gap-2">
+                <span className="rounded-2xl border border-palette-light bg-gray-50 px-4 py-3 text-base text-palette-dark/60 select-none">
+                  +91
+                </span>
+                <input
+                  id="phone"
+                  type="tel"
+                  value={phone}
+                  onChange={(event) => setPhone(event.target.value)}
+                  placeholder="9876543210"
+                  maxLength={10}
+                  disabled={step === 'verify'}
+                  className="w-full rounded-2xl border border-palette-light bg-white px-4 py-3 text-base text-palette-dark outline-none transition focus:border-palette-primary disabled:bg-gray-50 disabled:text-palette-dark/60"
+                />
+              </div>
             </div>
 
             {step === 'verify' && (
@@ -128,11 +128,21 @@ export default function CustomerLoginPage({ redirectTo = '/cart' }) {
                 </label>
                 <input
                   id="otp"
+                  type="text"
+                  inputMode="numeric"
                   value={otp}
                   onChange={(event) => setOtp(event.target.value)}
-                  placeholder="Enter 6-digit OTP"
+                  placeholder="Enter OTP"
+                  maxLength={6}
                   className="w-full rounded-2xl border border-palette-light bg-white px-4 py-3 text-base text-palette-dark outline-none transition focus:border-palette-primary"
                 />
+                <button
+                  type="button"
+                  onClick={() => { setStep('request'); setOtp(''); setMessage(''); setError(''); }}
+                  className="mt-2 text-xs text-palette-primary underline"
+                >
+                  Change number
+                </button>
               </div>
             )}
 
@@ -142,7 +152,9 @@ export default function CustomerLoginPage({ redirectTo = '/cart' }) {
               </div>
             )}
             {error && (
-              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {error}
+              </div>
             )}
 
             <button
@@ -150,7 +162,7 @@ export default function CustomerLoginPage({ redirectTo = '/cart' }) {
               disabled={isSubmitting}
               className="w-full rounded-full bg-palette-primary py-3 text-sm font-semibold text-white transition hover:bg-palette-dark disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isSubmitting ? 'Please wait...' : step === 'request' ? 'Send OTP' : 'Verify & Login'}
+              {isSubmitting ? 'Please wait...' : step === 'request' ? 'Send OTP on WhatsApp' : 'Verify & Login'}
             </button>
           </form>
         </div>

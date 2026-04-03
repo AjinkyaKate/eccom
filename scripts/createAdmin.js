@@ -10,7 +10,22 @@ const User = require('../src/models/User');
 const createAdmin = async () => {
   try {
     // Connect to MongoDB
-    await mongoose.connect(process.env.MONGODB_URI);
+    try {
+      await mongoose.connect(process.env.MONGODB_URI, {
+        serverSelectionTimeoutMS: 10000,
+        connectTimeoutMS: 10000,
+      });
+    } catch (error) {
+      const isSrvFailure = error.message.toLowerCase().includes('querysrv');
+      if (!isSrvFailure || !process.env.MONGODB_DIRECT_URI) {
+        throw error;
+      }
+
+      await mongoose.connect(process.env.MONGODB_DIRECT_URI, {
+        serverSelectionTimeoutMS: 10000,
+        connectTimeoutMS: 10000,
+      });
+    }
     console.log('✅ MongoDB Connected');
 
     // Admin credentials
@@ -48,7 +63,7 @@ const createAdmin = async () => {
     console.log(`Role: ${admin.role}`);
     console.log('\n🔐 Admin Credentials:');
     console.log(`Email: ${admin.email}`);
-    console.log('Password: Admin@123');
+    console.log('Password: eccom@123');
     console.log(`Phone: ${admin.phone}`);
     console.log('\n⚠️  Please change the password after first login!\n');
 

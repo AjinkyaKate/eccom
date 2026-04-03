@@ -195,7 +195,7 @@ export default function SiteHeaderClient() {
           ) : customer ? (
             <>
               <span className="rounded-full border border-palette-light px-4 py-2 text-palette-dark/70">
-                {customer.name || customer.phone}
+                {customer.name || customer.email || customer.phone}
               </span>
               <button
                 type="button"
@@ -291,7 +291,7 @@ export default function SiteHeaderClient() {
             ) : customer ? (
               <>
                 <span className="px-4 py-2 text-palette-dark/60 text-sm">
-                  {customer.name || customer.phone}
+                  {customer.name || customer.email || customer.phone}
                 </span>
                 <button
                   type="button"

@@ -18,7 +18,7 @@ This note reflects the code currently present in `src/` and `scripts/`. If older
 - OTP verification and JWT issuance
 - Protected customer profile endpoint at `GET /api/auth/me`
 - User model with OTP, admin role, address, verification, and active state fields
-- WhatsApp provider abstraction with Green API implementation
+- WhatsApp provider abstraction with Meta Cloud API, Green API, and mock implementations
 
 ### Admin authentication and access control
 - Admin login with email/password
@@ -63,7 +63,7 @@ This note reflects the code currently present in `src/` and `scripts/`. If older
 ## Pending
 
 ### Not implemented yet
-- WhatsApp order/status notifications beyond OTP using the existing WhatsApp service
+- Final live Meta Business verification, phone-number onboarding, and approved template setup
 - Dedicated address CRUD APIs and the final search-based address flow
 - Admin order analytics beyond the dashboard summary
 - Admin abandoned-cart / recovery APIs

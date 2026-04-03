@@ -6,7 +6,7 @@ A production-ready Node.js backend for e-commerce with WhatsApp OTP authenticati
 
 - **Node.js** + **Express.js**
 - **MongoDB** (Database)
-- **Green API** (WhatsApp OTP - temporary, will migrate to Meta Business API)
+- **Meta WhatsApp Cloud API** (official WhatsApp delivery)
 - **JWT** (Authentication)
 
 ## 📁 Project Structure
@@ -27,6 +27,8 @@ eccom/
 ```
 
 ## 🛠️ Setup Instructions
+
+For the official Meta setup flow and required template names, use `META_WHATSAPP_SETUP.md`.
 
 ### 1. Install MongoDB
 
@@ -66,6 +68,7 @@ GREEN_API_TOKEN=your-api-token-here
 
 ```bash
 npm install
+npm run seed:whatsapp
 npm run dev
 ```
 

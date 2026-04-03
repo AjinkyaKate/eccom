@@ -46,8 +46,8 @@ export default function AdminDashboardPage() {
   }, []);
 
   return (
-    <div className="mx-auto max-w-shell space-y-8 px-6 py-10">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className="flex h-full flex-col gap-3 px-4 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <SectionHeading eyebrow="Admin workspace" title="Operations dashboard" />
         <Link
           href="/admin/orders"
@@ -58,10 +58,10 @@ export default function AdminDashboardPage() {
       </div>
 
       {error ? (
-        <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-red-700">{error}</div>
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
       ) : null}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label="Total orders"
           value={isLoading ? '...' : stats?.overview?.totalOrders ?? 0}
@@ -80,16 +80,13 @@ export default function AdminDashboardPage() {
         />
       </section>
 
-      <section className="panel-surface rounded-[2rem] border border-palette-light/80 p-8 shadow-panel">
-        <SectionHeading
-          eyebrow="Live status"
-          title="Order flow overview"
-        />
-        <div className="mt-6 flex flex-wrap gap-3">
+      <section className="panel-surface rounded-2xl border border-palette-light/80 px-5 py-3 shadow-panel">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-palette-primary/60">Live status — Order flow</p>
+        <div className="mt-2 flex flex-wrap gap-2">
           {Object.entries(stats?.ordersByStatus || {}).map(([status, count]) => (
             <div
               key={status}
-              className="rounded-full border border-palette-light bg-white px-4 py-2 text-sm font-semibold text-palette-dark"
+              className="rounded-full border border-palette-light bg-white px-3 py-1 text-xs font-semibold text-palette-dark"
             >
               {status.replace('_', ' ')}: {count}
             </div>
@@ -97,12 +94,9 @@ export default function AdminDashboardPage() {
         </div>
       </section>
 
-      <section className="panel-surface rounded-[2rem] border border-palette-light/80 p-8 shadow-panel">
-        <SectionHeading
-          eyebrow="Recent"
-          title="Latest order activity"
-        />
-        <div className="mt-6 overflow-x-auto">
+      <section className="panel-surface flex min-h-0 flex-1 flex-col rounded-2xl border border-palette-light/80 px-5 py-3 shadow-panel">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-palette-primary/60">Recent — Latest order activity</p>
+        <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto">
           <table className="min-w-full divide-y divide-palette-light text-left">
             <thead>
               <tr className="text-xs uppercase tracking-[0.18em] text-palette-primary/70">
@@ -117,25 +111,25 @@ export default function AdminDashboardPage() {
             <tbody className="divide-y divide-palette-light/70 text-sm text-palette-dark">
               {orders.map((order) => (
                 <tr key={order._id}>
-                  <td className="py-4">
+                  <td className="py-2">
                     <Link href={`/admin/orders/${order._id}`} className="font-semibold text-palette-primary hover:text-palette-dark">
                       {order.orderNumber}
                     </Link>
                   </td>
-                  <td className="py-4">
+                  <td className="py-2">
                     <p>{order.customer?.name || order.customer?.email || 'Customer'}</p>
                     <p className="text-palette-dark/60">{order.customer?.phone}</p>
                   </td>
-                  <td className="py-4">
+                  <td className="py-2">
                     <StatusPill>{order.status}</StatusPill>
                   </td>
-                  <td className="py-4">
+                  <td className="py-2">
                     <StatusPill tone={order.payment?.status === 'paid' ? 'success' : 'soft'}>
                       {order.payment?.status || 'pending'}
                     </StatusPill>
                   </td>
-                  <td className="py-4 font-semibold">{formatCurrency(order.pricing?.total || 0)}</td>
-                  <td className="py-4 text-palette-dark/70">{formatDateTime(order.createdAt)}</td>
+                  <td className="py-2 font-semibold">{formatCurrency(order.pricing?.total || 0)}</td>
+                  <td className="py-2 text-palette-dark/70">{formatDateTime(order.createdAt)}</td>
                 </tr>
               ))}
               {!isLoading && orders.length === 0 ? (

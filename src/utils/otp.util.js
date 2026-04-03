@@ -1,8 +1,11 @@
 /**
- * Generate a random 6-digit OTP
+ * Generate a random numeric OTP
  */
-const generateOTP = () => {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+const generateOTP = (length = null) => {
+  const otpLength = Math.max(4, parseInt(length || process.env.OTP_LENGTH || 6, 10) || 6);
+  const min = 10 ** (otpLength - 1);
+  const max = 10 ** otpLength;
+  return Math.floor(min + Math.random() * (max - min)).toString();
 };
 
 /**

@@ -11,6 +11,18 @@ const slugify = (value = '') => {
     .replace(/^-+|-+$/g, '');
 };
 
+const variantSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, trim: true },
+    price: { type: Number, required: true, min: 0 },
+    discountPrice: { type: Number, min: 0, default: null },
+    stock: { type: Number, min: 0, default: 0 },
+    sku: { type: String, trim: true, uppercase: true },
+    isActive: { type: Boolean, default: true },
+  },
+  { _id: true }
+);
+
 const productSchema = new mongoose.Schema(
   {
     name: {
@@ -36,21 +48,13 @@ const productSchema = new mongoose.Schema(
       trim: true,
       maxlength: [300, 'Short description cannot exceed 300 characters'],
     },
-    category: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Category',
-      required: [true, 'Category is required'],
+    variants: {
+      type: [variantSchema],
+      default: [],
     },
-    price: {
-      type: Number,
-      required: [true, 'Price is required'],
-      min: [0, 'Price cannot be negative'],
-    },
-    discountPrice: {
-      type: Number,
-      min: [0, 'Discount price cannot be negative'],
-      default: null,
-    },
+    // kept for backwards compat / fallback pricing
+    price: { type: Number, min: 0, default: 0 },
+    discountPrice: { type: Number, min: 0, default: null },
     images: {
       type: [String],
       default: [],
@@ -59,19 +63,8 @@ const productSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
-    stock: {
-      type: Number,
-      required: [true, 'Stock is required'],
-      min: [0, 'Stock cannot be negative'],
-      default: 0,
-    },
-    sku: {
-      type: String,
-      required: [true, 'SKU is required'],
-      unique: true,
-      trim: true,
-      uppercase: true,
-    },
+    stock: { type: Number, min: 0, default: 0 },
+    sku: { type: String, trim: true, uppercase: true, sparse: true },
     specifications: {
       type: mongoose.Schema.Types.Mixed,
       default: {},
@@ -85,27 +78,11 @@ const productSchema = new mongoose.Schema(
       default: false,
     },
     rating: {
-      average: {
-        type: Number,
-        default: 0,
-        min: [0, 'Rating cannot be negative'],
-        max: [5, 'Rating cannot exceed 5'],
-      },
-      count: {
-        type: Number,
-        default: 0,
-        min: [0, 'Rating count cannot be negative'],
-      },
+      average: { type: Number, default: 0, min: 0, max: 5 },
+      count: { type: Number, default: 0, min: 0 },
     },
-    soldCount: {
-      type: Number,
-      default: 0,
-      min: [0, 'Sold count cannot be negative'],
-    },
-    tags: {
-      type: [String],
-      default: [],
-    },
+    soldCount: { type: Number, default: 0, min: 0 },
+    tags: { type: [String], default: [] },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -116,7 +93,6 @@ const productSchema = new mongoose.Schema(
   }
 );
 
-productSchema.index({ category: 1 });
 productSchema.index({ isActive: 1 });
 productSchema.index({ isFeatured: 1 });
 productSchema.index({
@@ -140,21 +116,21 @@ productSchema.pre('validate', function () {
     : [];
 
   this.tags = Array.isArray(this.tags)
-    ? this.tags
-        .map((tag) => tag.toString().trim().toLowerCase())
-        .filter(Boolean)
+    ? this.tags.map((tag) => tag.toString().trim().toLowerCase()).filter(Boolean)
     : [];
 
   if (!this.mainImage && this.images.length > 0) {
     this.mainImage = this.images[0];
   }
 
-  if (
-    this.discountPrice !== null &&
-    this.discountPrice !== undefined &&
-    this.discountPrice >= this.price
-  ) {
-    this.invalidate('discountPrice', 'Discount price must be less than regular price');
+  // auto-generate SKU per variant if missing
+  if (Array.isArray(this.variants)) {
+    this.variants.forEach((v) => {
+      if (!v.sku) {
+        const base = (v.name || 'VAR').replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 5);
+        v.sku = `${base}-${Date.now().toString().slice(-5)}`;
+      }
+    });
   }
 });
 
