@@ -112,9 +112,13 @@ export default function CustomerLoginPage({ redirectTo = '/cart' }) {
                   id="phone"
                   type="tel"
                   value={phone}
-                  onChange={(event) => setPhone(event.target.value)}
+                  onChange={(event) => {
+                    let val = event.target.value.replace(/\D/g, '');
+                    if (val.startsWith('91') && val.length > 10) val = val.slice(2);
+                    setPhone(val.slice(0, 10));
+                  }}
                   placeholder="9876543210"
-                  maxLength={10}
+                  maxLength={13}
                   disabled={step === 'verify'}
                   className="w-full rounded-2xl border border-palette-light bg-white px-4 py-3 text-base text-palette-dark outline-none transition focus:border-palette-primary disabled:bg-gray-50 disabled:text-palette-dark/60"
                 />
@@ -132,8 +136,8 @@ export default function CustomerLoginPage({ redirectTo = '/cart' }) {
                   inputMode="numeric"
                   value={otp}
                   onChange={(event) => setOtp(event.target.value)}
-                  placeholder="Enter OTP"
-                  maxLength={6}
+                  placeholder="Enter 4-digit OTP"
+                  maxLength={4}
                   className="w-full rounded-2xl border border-palette-light bg-white px-4 py-3 text-base text-palette-dark outline-none transition focus:border-palette-primary"
                 />
                 <button
