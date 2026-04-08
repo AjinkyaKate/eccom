@@ -6,21 +6,22 @@ const Product = require('../models/Product');
 const User = require('../models/User');
 const BusinessSettings = require('../models/BusinessSettings');
 const PaymentLink = require('../models/PaymentLink');
+const WhatsAppLog = require('../models/WhatsAppLog');
 const { parsePagination, buildPaginationMeta } = require('../utils/pagination.util');
 const { generateOrderNumber, generateInvoiceNumber } = require('../utils/orderNumber.util');
 const { validatePhoneNumber, formatPhoneNumber } = require('../utils/otp.util');
 const { generateInvoicePdf } = require('../services/invoice.service');
 const { addDebit, checkOrderBlock } = require('../services/ledger.service');
 const { createPaymentLink } = require('../services/razorpay.service');
-const { sendInvoiceMessage, sendOrderStatusUpdate } = require('../services/billing.whatsapp.service');
+const { sendPaymentConfirmation } = require('../services/billing.whatsapp.service');
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 
-const AVAILABLE_PAYMENT_METHODS = ['COD'];
+const AVAILABLE_PAYMENT_METHODS = ['ONLINE'];
 const BLOCKING_CHECKOUT_ISSUES = new Set(['empty_cart', 'product_unavailable']);
 
 const ORDER_STATUS_TRANSITIONS = {
-  placed: ['confirmed', 'cancelled'],
+  placed: ['packed', 'confirmed', 'cancelled'],
   confirmed: ['packed', 'cancelled'],
   packed: ['dispatched', 'cancelled'],
   dispatched: ['in_transit', 'delivered'],
@@ -36,17 +37,46 @@ const PAYMENT_STATUS_TRANSITIONS = {
   refunded: [],
 };
 
-const CUSTOMER_CANCELABLE_STATUSES = new Set(['placed', 'confirmed']);
+const CUSTOMER_CANCELABLE_STATUSES = new Set(['placed', 'confirmed', 'packed']);
 const ADMIN_CANCELABLE_STATUSES = new Set(['placed', 'confirmed', 'packed']);
 
 const escapeRegex = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+const parseNumericPrice = (value) => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const normalized = value.replace(/,/g, '');
+  const match = normalized.match(/(\d+(?:\.\d+)?)/);
+
+  if (!match) {
+    return undefined;
+  }
+
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
+
 const getCurrentProductPrice = (product) => {
-  if (product.discountPrice && product.discountPrice > 0 && product.discountPrice < product.price) {
+  if (
+    product.discountPrice &&
+    product.discountPrice > 0 &&
+    product.price &&
+    product.discountPrice < product.price
+  ) {
     return product.discountPrice;
   }
 
-  return product.price;
+  if (product.price !== undefined && product.price !== null) {
+    return Number(product.price);
+  }
+
+  return parseNumericPrice(product.priceDisplay);
 };
 
 const normalizeAddressSnapshot = (address = {}, user = null) => {
@@ -165,7 +195,7 @@ const loadCheckoutContext = async (userId) => {
     User.findById(userId).select('phone name email addresses'),
     Cart.findOne({ user: userId }).populate(
       'items.product',
-      'name slug sku mainImage price discountPrice stock isActive'
+      'name slug sku images mainImage price priceDisplay discountPrice stock isActive'
     ),
   ]);
 
@@ -214,19 +244,20 @@ const loadCheckoutContext = async (userId) => {
     }
 
     const currentPrice = getCurrentProductPrice(item.product);
+    const previousUnitPrice = parseNumericPrice(item.price);
     const itemData = {
       cartItemId: item._id,
       productId: item.product._id,
       name: item.product.name,
       slug: item.product.slug,
       sku: item.product.sku,
-      image: item.product.mainImage,
+      image: item.product.mainImage || item.product.images?.[0] || '',
       quantity: item.quantity,
       unitPrice: currentPrice,
-      previousUnitPrice: item.price,
+      previousUnitPrice,
       subtotal: currentPrice * item.quantity,
       stock: item.product.stock,
-      hasPriceChanged: item.price !== currentPrice,
+      hasPriceChanged: previousUnitPrice !== undefined && previousUnitPrice !== currentPrice,
     };
 
     if (itemData.hasPriceChanged) {
@@ -234,7 +265,7 @@ const loadCheckoutContext = async (userId) => {
         code: 'price_changed',
         itemId: item._id,
         productId: item.product._id,
-        message: `${item.product.name} price changed from ${item.price} to ${currentPrice}`,
+        message: `${item.product.name} price changed from ${previousUnitPrice} to ${currentPrice}`,
       });
     }
 
@@ -340,6 +371,92 @@ const buildOrderWriteOperations = async ({ order, cart, checkoutItems }) => {
 
     await runWithoutTransaction();
   }
+};
+
+const buildCheckoutSnapshot = ({ summary, address, customerNotes, previewOrderNumber }) => ({
+  customerUserId: summary.user._id,
+  customer: {
+    user: summary.user._id,
+    phone: summary.user.phone,
+    name: summary.user.name,
+    email: summary.user.email,
+  },
+  items: summary.items.map((item) => ({
+    cartItemId: item.cartItemId,
+    productId: item.productId,
+    name: item.name,
+    slug: item.slug,
+    sku: item.sku,
+    image: item.image,
+    quantity: item.quantity,
+    unitPrice: item.unitPrice,
+    subtotal: item.subtotal,
+  })),
+  shippingAddress: address,
+  pricing: summary.pricing,
+  customerNotes,
+  previewOrderNumber,
+});
+
+const createCheckoutPaymentSession = async ({ summary, address, customerNotes, previewOrderNumber }) => {
+  const settings = await BusinessSettings.findOne().lean();
+  const checkoutSnapshot = buildCheckoutSnapshot({
+    summary,
+    address,
+    customerNotes,
+    previewOrderNumber,
+  });
+
+  const ledger = await addDebit({
+    phone: summary.user.phone,
+    name: summary.user.name,
+    userId: summary.user._id,
+    amount: summary.pricing.total,
+    description: `Online checkout initiated for ${previewOrderNumber}`,
+    invoiceNumber: previewOrderNumber,
+    createdByRole: 'system',
+  });
+
+  const token = uuidv4();
+  const previewUrl = `${FRONTEND_URL}/pay/${token}`;
+  const link = new PaymentLink({
+    token,
+    ledger: ledger._id,
+    customerPhone: summary.user.phone,
+    customerName: summary.user.name,
+    amount: summary.pricing.total,
+    description: `Order ${previewOrderNumber}`,
+    status: 'active',
+    amountPaid: 0,
+    invoiceImageUrl: `${FRONTEND_URL}/api/pay/${token}/preview-image.png`,
+    checkoutSnapshot,
+  });
+
+  try {
+    const rzpLink = await createPaymentLink({
+      amount: summary.pricing.total,
+      customerName: summary.user.name,
+      customerPhone: summary.user.phone,
+      description: `Order ${previewOrderNumber}`,
+      referenceId: token,
+      callbackUrl: previewUrl,
+      acceptPartial: false,
+    });
+    link.razorpayPaymentLinkId = rzpLink.id;
+    link.razorpayPaymentLinkUrl = rzpLink.short_url || previewUrl;
+    link.razorpayShortUrl = rzpLink.short_url;
+  } catch (_) {
+    link.razorpayPaymentLinkUrl = previewUrl;
+  }
+
+  await link.save();
+
+  return {
+    link,
+    previewUrl,
+    paymentUrl: link.razorpayPaymentLinkUrl || previewUrl,
+    orderPreviewNumber: previewOrderNumber,
+  };
 };
 
 const setOrderStatusTimestamps = (order, nextStatus) => {
@@ -469,7 +586,7 @@ const checkout = async (req, res) => {
       });
     }
 
-    const paymentMethod = (req.body.paymentMethod || 'COD').toString().trim().toUpperCase();
+    const paymentMethod = (req.body.paymentMethod || 'ONLINE').toString().trim().toUpperCase();
 
     if (!AVAILABLE_PAYMENT_METHODS.includes(paymentMethod)) {
       return res.status(400).json({
@@ -487,9 +604,33 @@ const checkout = async (req, res) => {
       });
     }
 
-    const orderNumber = await createUniqueOrderNumber();
+    const previewOrderNumber = generateOrderNumber();
     const customerNotes =
       typeof req.body.notes === 'string' && req.body.notes.trim() ? req.body.notes.trim() : undefined;
+
+    const paymentSession = await createCheckoutPaymentSession({
+      summary,
+      address,
+      customerNotes,
+      previewOrderNumber,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Payment session created successfully',
+      data: {
+        payment: {
+          token: paymentSession.link.token,
+          status: paymentSession.link.status,
+          amount: paymentSession.link.amount,
+          amountDue: paymentSession.link.amount,
+          paymentUrl: paymentSession.paymentUrl,
+          previewUrl: paymentSession.previewUrl,
+          orderPreviewNumber: paymentSession.orderPreviewNumber,
+        },
+        selectedAddress: address,
+      },
+    });
 
     const order = new Order({
       orderNumber,
@@ -594,19 +735,6 @@ const checkout = async (req, res) => {
         }
         await link.save();
 
-        // 3. Send WhatsApp invoice message
-        const paymentUrl = `${FRONTEND_URL}/pay/${token}`;
-        await sendInvoiceMessage({
-          phone: summary.user.phone,
-          customerName: summary.user.name,
-          businessName: settings?.businessName || '',
-          invoiceNumber,
-          amountDue: orderTotal,
-          paymentLink: paymentUrl,
-          ledgerId: ledger._id,
-          orderId: order._id,
-          paymentLinkId: link._id,
-        });
       } catch (bgErr) {
         console.error('[checkout] Background billing task failed:', bgErr.message);
       }
@@ -847,7 +975,7 @@ const getAdminOrders = async (req, res) => {
         .skip(skip)
         .limit(limit)
         .select(
-          'orderNumber customer status pricing payment source createdAt confirmedAt packedAt dispatchedAt deliveredAt cancelledAt'
+          'orderNumber customer status pricing payment invoice source createdAt confirmedAt packedAt dispatchedAt deliveredAt cancelledAt'
         ),
       Order.countDocuments(filter),
       buildAdminOrderStats(),
@@ -983,27 +1111,6 @@ const updateOrderStatus = async (req, res) => {
 
     await order.save();
 
-    const customerPhone = order.customer?.phone ? formatPhoneNumber(order.customer.phone) : '';
-    if (customerPhone && validatePhoneNumber(customerPhone)) {
-      setImmediate(async () => {
-        try {
-          const settings = await BusinessSettings.findOne().lean();
-          await sendOrderStatusUpdate({
-            phone: customerPhone,
-            customerName: order.customer?.name,
-            businessName: settings?.businessName || '',
-            orderNumber: order.orderNumber,
-            status: nextStatus.replace(/_/g, ' '),
-            statusNote: note,
-            orderId: order._id,
-            sentBy: req.user.userId,
-          });
-        } catch (whatsAppError) {
-          console.error('[updateOrderStatus] WhatsApp update failed:', whatsAppError.message);
-        }
-      });
-    }
-
     res.status(200).json({
       success: true,
       message: 'Order status updated successfully',
@@ -1098,6 +1205,50 @@ const updateOrderPayment = async (req, res) => {
     });
 
     await order.save();
+
+    if (nextStatus === 'paid' && !order.invoice?.sharedOnWhatsAppAt) {
+      const customerPhone = order.customer?.phone ? formatPhoneNumber(order.customer.phone) : '';
+
+      if (customerPhone && validatePhoneNumber(customerPhone)) {
+        setImmediate(async () => {
+          try {
+            const [settings, paymentLink] = await Promise.all([
+              BusinessSettings.findOne().lean(),
+              PaymentLink.findOne({ orderId: order._id }).sort({ createdAt: -1 }).select('token').lean(),
+            ]);
+
+            const invoiceNumber = order.invoice?.invoiceNumber || order.orderNumber;
+            const paymentPageUrl = paymentLink?.token
+              ? `${FRONTEND_URL}/pay/${paymentLink.token}`
+              : `${FRONTEND_URL}/orders/${order._id}`;
+            const invoiceImageUrl = paymentLink?.token
+              ? `${FRONTEND_URL}/api/pay/${paymentLink.token}/preview-image.png`
+              : undefined;
+
+            await sendPaymentConfirmation({
+              phone: customerPhone,
+              customerName: order.customer?.name,
+              businessName: settings?.businessName || '',
+              invoiceNumber,
+              amountPaid: order.payment.paidAmount || order.pricing.total,
+              paymentLink: paymentPageUrl,
+              invoiceImageUrl,
+              orderId: order._id,
+              paymentLinkId: undefined,
+            });
+
+            await Order.updateOne(
+              { _id: order._id },
+              {
+                'invoice.sharedOnWhatsAppAt': new Date(),
+              }
+            );
+          } catch (whatsAppError) {
+            console.error('[updateOrderPayment] WhatsApp confirmation failed:', whatsAppError.message);
+          }
+        });
+      }
+    }
 
     res.status(200).json({
       success: true,
@@ -1286,6 +1437,7 @@ const adminCreateOrder = async (req, res) => {
           description:    `Invoice #${invoiceNumber}`,
           status:         'active',
           amountPaid:     0,
+          invoiceImageUrl:`${FRONTEND_URL}/api/pay/${token}/preview-image.png`,
           createdBy:      req.user?.userId,
         });
 
@@ -1306,18 +1458,6 @@ const adminCreateOrder = async (req, res) => {
         }
         await link.save();
 
-        await sendInvoiceMessage({
-          phone:          order.customer.phone,
-          customerName:   order.customer.name,
-          businessName:   settings?.businessName || '',
-          invoiceNumber,
-          amountDue:      orderTotal,
-          paymentLink:    `${FRONTEND_URL}/pay/${token}`,
-          ledgerId:       ledger._id,
-          orderId:        order._id,
-          paymentLinkId:  link._id,
-          sentBy:         req.user?.userId,
-        });
       } catch (bgErr) {
         console.error('[adminCreateOrder] Background billing task failed:', bgErr.message);
       }
@@ -1351,11 +1491,10 @@ const getOrderInvoicePdf = async (req, res) => {
     const pdfBuffer = await generateInvoicePdf(order.toObject(), settings.toObject());
 
     const invoiceNo = order.invoice?.invoiceNumber || order.orderNumber;
-    const isPreview = req.query.preview === '1';
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
-      `${isPreview ? 'inline' : 'attachment'}; filename="invoice-${invoiceNo}.pdf"`
+      `inline; filename="invoice-${invoiceNo}.pdf"`
     );
     res.setHeader('Content-Length', pdfBuffer.length);
     res.end(pdfBuffer);

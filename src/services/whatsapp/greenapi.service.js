@@ -81,6 +81,10 @@ class GreenAPIService {
     }
   }
 
+  async sendImageByUrl(phoneNumber, imageUrl, caption = '') {
+    return this.sendFileByUrl(phoneNumber, imageUrl, 'bill-preview.png', caption);
+  }
+
   /**
    * Send OTP via WhatsApp
    * @param {string} phoneNumber - Phone number with country code

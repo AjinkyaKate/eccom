@@ -11,15 +11,17 @@ const getTimeSegment = (date = new Date()) => {
 };
 
 const getRandomSegment = () => {
-  return crypto.randomInt(100, 1000).toString();
+  return crypto.randomInt(1000, 10000).toString();
 };
 
 const generateOrderNumber = (date = new Date()) => {
-  return `ORD-${getDateSegment(date)}-${getTimeSegment(date)}-${getRandomSegment()}`;
+  const dateSegment = `${pad(date.getDate())}${pad(date.getMonth() + 1)}`;
+  return `ORD-${dateSegment}-${getRandomSegment()}`;
 };
 
 const generateInvoiceNumber = (date = new Date()) => {
-  return `INV-${getDateSegment(date)}-${getTimeSegment(date)}-${getRandomSegment()}`;
+  const dateSegment = `${date.getFullYear().toString().slice(-2)}${pad(date.getMonth() + 1)}${pad(date.getDate())}`;
+  return `INV-${dateSegment}-${getRandomSegment()}`;
 };
 
 module.exports = {

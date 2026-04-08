@@ -137,9 +137,9 @@ export default function CustomerOrderDetailPage({ orderId }) {
                   <div key={item._id} className="rounded-2xl border border-palette-light bg-white p-4">
                     <div className="flex items-center justify-between gap-4">
                       <p className="font-semibold text-palette-dark">{item.name}</p>
-                      <p className="text-palette-dark/70">Qty {item.quantity}</p>
+                      <p className="text-palette-dark/70 whitespace-nowrap">Qty {item.quantity}</p>
                     </div>
-                    <p className="mt-2 text-sm text-palette-dark/65">{formatCurrency(item.subtotal || 0)}</p>
+                    <p className="mt-2 text-sm font-semibold text-palette-primary">{item.price}</p>
                   </div>
                 ))}
               </div>
@@ -173,15 +173,15 @@ export default function CustomerOrderDetailPage({ orderId }) {
                 </p>
                 <p>{order.shippingAddress?.phone}</p>
               </div>
-              <div className="mt-5 rounded-2xl border border-palette-light bg-palette-lighter p-4">
-                <p className="text-sm uppercase tracking-[0.18em] text-palette-primary/70">Total</p>
-                <p className="mt-2 text-3xl font-semibold text-palette-dark">
-                  {formatCurrency(order.pricing?.total || 0)}
+              <div className="mt-5 rounded-2xl border border-palette-light bg-palette-lighter p-4 text-center">
+                <p className="text-xs uppercase tracking-[0.18em] text-palette-primary/70 font-bold">Payment Method</p>
+                <p className="mt-2 text-xl font-bold text-palette-dark uppercase">
+                  {order.payment?.method || 'COD'}
                 </p>
               </div>
             </div>
 
-            {(order.status === 'placed' || order.status === 'confirmed') ? (
+            {(order.status === 'placed' || order.status === 'confirmed' || order.status === 'packed') ? (
               <div className="panel-surface rounded-[2rem] border border-palette-light/80 p-8 shadow-panel">
                 <h2 className="text-2xl font-semibold text-palette-dark">Need to cancel?</h2>
                 <p className="mt-3 text-base leading-7 text-palette-dark/75">

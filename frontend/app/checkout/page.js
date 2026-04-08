@@ -79,8 +79,8 @@ export default function CheckoutPage() {
 
     const body =
       selectedAddressId !== null
-        ? { paymentMethod: 'COD', shippingAddressId: selectedAddressId }
-        : { paymentMethod: 'COD', shippingAddress: newAddress };
+        ? { paymentMethod: 'ONLINE', shippingAddressId: selectedAddressId }
+        : { paymentMethod: 'ONLINE', shippingAddress: newAddress };
 
     try {
       const response = await apiFetch('/api/orders/checkout', {
@@ -88,7 +88,7 @@ export default function CheckoutPage() {
         headers: { Authorization: `Bearer ${token}` },
         body: JSON.stringify(body),
       });
-      router.push(`/orders/${response?.data?.order?._id}`);
+      router.push(response?.data?.payment?.previewUrl || '/cart');
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -299,7 +299,7 @@ export default function CheckoutPage() {
                 disabled={isPlacing || !summary?.canCheckout}
                 className="w-full rounded-full bg-palette-primary px-6 py-4 text-sm font-semibold text-white transition hover:bg-palette-dark disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isPlacing ? 'Placing order...' : 'Place COD order'}
+                {isPlacing ? 'Redirecting to payment...' : 'Proceed to online payment'}
               </button>
             </div>
 
@@ -311,18 +311,21 @@ export default function CheckoutPage() {
                   <div key={item.cartItemId} className="rounded-2xl border border-palette-light bg-white p-4">
                     <div className="flex items-center justify-between gap-4">
                       <p className="font-semibold text-palette-dark">{item.name}</p>
-                      <p className="text-palette-dark/70">Qty {item.quantity}</p>
+                      <p className="text-palette-dark/70 whitespace-nowrap">Qty {item.quantity}</p>
                     </div>
-                    <p className="mt-2 text-sm text-palette-dark/65">{formatCurrency(item.subtotal || 0)}</p>
+                    <p className="mt-2 text-sm font-semibold text-palette-primary">
+                      {formatCurrency(item.subtotal || 0)}
+                    </p>
+                    <p className="mt-1 text-xs text-palette-dark/60">
+                      {formatCurrency(item.unitPrice || 0)} each
+                    </p>
                   </div>
                 ))}
               </div>
               <div className="mt-6 rounded-2xl border border-palette-light bg-palette-lighter p-5">
-                <p className="text-sm uppercase tracking-[0.18em] text-palette-primary/70">Payable now</p>
-                <p className="mt-2 text-3xl font-semibold text-palette-dark">
-                  {formatCurrency(summary?.pricing?.total || 0)}
-                </p>
-                <p className="mt-2 text-sm text-palette-dark/70">Payment method: COD</p>
+                <p className="text-sm uppercase tracking-[0.18em] text-palette-primary/70">Payment Mode</p>
+                <p className="mt-2 text-2xl font-bold text-palette-dark">Online Payment</p>
+                <p className="mt-2 text-xs text-palette-dark/60 font-medium">You will review the invoice and complete payment on the next screen.</p>
               </div>
               {summary?.issues?.length ? (
                 <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">

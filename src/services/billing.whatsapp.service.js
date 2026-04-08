@@ -16,8 +16,8 @@ const FALLBACK_TEMPLATES = {
     variables: ['customerName', 'amountDue', 'paymentLink', 'businessName'],
   },
   payment_confirmed: {
-    body: `Payment received.\n\n*Rs {{amountPaid}}* received for Bill *#{{invoiceNumber}}*.\n\nRemaining balance: *Rs {{amountDue}}*\n\nView your updated bill here:\n{{paymentLink}}\n\nThank you.\n- {{businessName}}`,
-    variables: ['customerName', 'amountPaid', 'invoiceNumber', 'amountDue', 'paymentLink', 'businessName'],
+    body: `Hi {{customerName}},\n\nPayment received successfully for *Order #{{invoiceNumber}}*.\n\nWe have received *Rs {{amountPaid}}* for your order with *{{businessName}}*.\n\nView Bill:\n{{paymentLink}}\n\nYour order is now being prepared. We will keep you updated on the next step.\n\nThank you for choosing {{businessName}}.\nTeam {{businessName}}`,
+    variables: ['customerName', 'businessName', 'amountPaid', 'invoiceNumber', 'paymentLink'],
   },
   order_status_update: {
     body: `Hello {{customerName}},\n\nYour order *#{{orderNumber}}* is now *{{status}}*.\n\n{{statusNote}}\n\n- {{businessName}}`,
@@ -71,6 +71,8 @@ const sendBillingMessage = async ({
   messageType,
   templateKey,
   variables = {},
+  imageUrl,
+  forceTextMessage = false,
   ledgerId,
   orderId,
   paymentLinkId,
@@ -104,14 +106,16 @@ const sendBillingMessage = async ({
   try {
     let result;
 
-    if (whatsAppProvider.supportsTemplateDelivery()) {
+    if (imageUrl) {
+      result = await whatsAppProvider.sendImageByUrl(phone, imageUrl, renderedBody);
+    } else if (!forceTextMessage && whatsAppProvider.supportsTemplateDelivery()) {
       const payload = buildTemplatePayload(templateKey, variables, templateDefinition);
       result = await whatsAppProvider.sendTemplate(phone, payload.templateName, {
         bodyParameters: payload.bodyParameters,
       });
     } else {
       const logoUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/logo.jpeg`;
-      if (['invoice_sent', 'payment_confirmed'].includes(templateKey)) {
+      if (templateKey === 'invoice_sent') {
         result = await whatsAppProvider.sendFileByUrl(phone, logoUrl, 'BillPreview.jpeg', renderedBody);
       } else {
         result = await whatsAppProvider.sendMessage(phone, renderedBody);
@@ -176,8 +180,8 @@ const sendPaymentConfirmation = async ({
   businessName,
   invoiceNumber,
   amountPaid,
-  amountDue,
   paymentLink,
+  invoiceImageUrl,
   ledgerId,
   orderId,
   paymentLinkId,
@@ -191,10 +195,11 @@ const sendPaymentConfirmation = async ({
       customerName: customerName || 'Customer',
       amountPaid: Number(amountPaid).toLocaleString('en-IN'),
       invoiceNumber: invoiceNumber || '',
-      amountDue: Number(amountDue).toLocaleString('en-IN'),
       paymentLink,
       businessName: businessName || 'Us',
     },
+    imageUrl: invoiceImageUrl || undefined,
+    forceTextMessage: true,
     ledgerId,
     orderId,
     paymentLinkId,

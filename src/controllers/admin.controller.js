@@ -24,7 +24,16 @@ const adminLogin = async (req, res) => {
       role: 'admin',
     }).select('+password');
 
-    if (!admin || !admin.password) {
+    if (!admin) {
+      console.log(`Admin login failed: User not found with email ${normalizedEmail}`);
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials',
+      });
+    }
+
+    if (!admin.password) {
+      console.log(`Admin login failed: No password hash for user ${normalizedEmail}`);
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials',
@@ -33,6 +42,7 @@ const adminLogin = async (req, res) => {
 
     // Check if admin account is active
     if (!admin.isActive) {
+      console.log(`Admin login failed: Account inactive for ${normalizedEmail}`);
       return res.status(401).json({
         success: false,
         message: 'Account is inactive',
@@ -43,6 +53,7 @@ const adminLogin = async (req, res) => {
     const isPasswordValid = await admin.comparePassword(password);
 
     if (!isPasswordValid) {
+      console.log(`Admin login failed: Incorrect password for ${normalizedEmail}`);
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials',

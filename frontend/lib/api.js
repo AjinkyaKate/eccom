@@ -16,7 +16,7 @@ export async function apiFetch(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
     headers,
-    cache: options.cache || 'no-cache',
+    ...(options.cache ? { cache: options.cache } : {}),
   });
 
   const payload = await response.json().catch(() => null);

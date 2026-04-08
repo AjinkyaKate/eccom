@@ -31,11 +31,11 @@ const createAdmin = async () => {
     // Admin credentials
     // Phone is kept as contact metadata, email is used for login
     const adminData = {
-      phone: '+910000000000',
-      name: 'Rushi',
-      email: 'rushi@eccom.com',
+      phone: process.env.ADMIN_PHONE || '+910000000000',
+      name: process.env.ADMIN_NAME || 'Rushi',
+      email: process.env.ADMIN_EMAIL || 'rushi@eccom.com',
       role: 'admin',
-      password: 'eccom@123', // Will be hashed automatically
+      password: process.env.ADMIN_PASSWORD || 'eccom@123', // Use env variable or default
       isVerified: true,
       isActive: true,
     };
@@ -48,7 +48,7 @@ const createAdmin = async () => {
       console.log('\nAdmin Credentials:');
       console.log(`Email: ${existingAdmin.email || 'No email set on existing admin account'}`);
       console.log(`Phone: ${existingAdmin.phone || 'No phone set on existing admin account'}`);
-      console.log('Password: Existing password unchanged');
+      console.log('Password: (Already set, please use current password)');
       process.exit(0);
     }
 
@@ -63,7 +63,7 @@ const createAdmin = async () => {
     console.log(`Role: ${admin.role}`);
     console.log('\n🔐 Admin Credentials:');
     console.log(`Email: ${admin.email}`);
-    console.log('Password: eccom@123');
+    console.log(`Password: ${process.env.ADMIN_PASSWORD || 'eccom@123'}`);
     console.log(`Phone: ${admin.phone}`);
     console.log('\n⚠️  Please change the password after first login!\n');
 

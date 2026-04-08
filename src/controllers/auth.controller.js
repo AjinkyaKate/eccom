@@ -4,6 +4,7 @@ const { generateOTP, getOTPExpiry } = require('../utils/otp.util');
 const { generateToken } = require('../utils/jwt.util');
 
 const isMockMode = () => process.env.OTP_MOCK_MODE === 'true';
+const DEFAULT_OTP_LENGTH = Math.max(4, parseInt(process.env.OTP_LENGTH || 4, 10) || 4);
 
 /**
  * Normalize phone: strip spaces/dashes, ensure country code prefix
@@ -51,11 +52,6 @@ const sendOTP = async (req, res) => {
     }
 
     const otp = generateOTP();
-    const otpExpiry = getOTPExpiry();
-
-    user.otp = { code: otp, expiresAt: otpExpiry, attempts: 0 };
-    await user.save();
-
     const result = await whatsapp.sendOTP(phone, otp);
 
     if (!result.success) {
@@ -66,8 +62,13 @@ const sendOTP = async (req, res) => {
       });
     }
 
+    const otpExpiry = getOTPExpiry();
+    user.otp = { code: otp, expiresAt: otpExpiry, attempts: 0 };
+    await user.save();
+
     const responseData = {
       phone,
+      otpLength: DEFAULT_OTP_LENGTH,
       expiresIn: `${process.env.OTP_EXPIRY_MINUTES || 5} minutes`,
       deliveryMode: result.mock ? 'mock' : 'whatsapp',
     };
@@ -109,7 +110,7 @@ const verifyOTP = async (req, res) => {
       });
     }
 
-    const isUniversalOtp = otp === '123456' || otp === '1234';
+    const isUniversalOtp = isMockMode() && otp === '1234';
 
     if (!isUniversalOtp && user.isMaxAttemptsExceeded()) {
       return res.status(429).json({
@@ -119,14 +120,18 @@ const verifyOTP = async (req, res) => {
     }
 
     if (!isUniversalOtp) {
-      user.otp = { ...(user.otp || {}), attempts: Number(user.otp?.attempts || 0) + 1 };
+      // If OTP was expired/missing, we still want to save but not crash on attempts
+      const currentAttempts = Number(user.otp?.attempts || 0);
+      user.otp = { 
+        ...(user.otp || {}), 
+        attempts: currentAttempts + 1 
+      };
       await user.save();
     }
 
-    const attemptsLeft = Math.max(
-      0,
-      (parseInt(process.env.OTP_MAX_ATTEMPTS) || 3) - Number(user.otp?.attempts || 0)
-    );
+    const currentAttemptsAfterSave = Number(user.otp?.attempts || 0);
+    const maxAttempts = parseInt(process.env.OTP_MAX_ATTEMPTS) || 3;
+    const attemptsLeft = Math.max(0, maxAttempts - currentAttemptsAfterSave);
 
     if (!isUniversalOtp && !user.isOTPValid(otp)) {
       return res.status(401).json({
@@ -137,7 +142,7 @@ const verifyOTP = async (req, res) => {
     }
 
     user.isVerified = true;
-    user.otp = undefined;
+    user.otp = undefined; // Clear OTP after success
     await user.save();
 
     const token = generateToken({ userId: user._id, phone: user.phone });

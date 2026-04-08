@@ -22,7 +22,6 @@ const paymentLinkSchema = new mongoose.Schema(
     ledger: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'CustomerLedger',
-      required: true,
     },
     // optional — tied to a specific order
     orderId: {
@@ -65,6 +64,7 @@ const paymentLinkSchema = new mongoose.Schema(
     razorpayPaymentLinkId: { type: String, trim: true },
     razorpayPaymentLinkUrl: { type: String, trim: true },
     razorpayShortUrl: { type: String, trim: true },
+    invoiceImageUrl: { type: String, trim: true },
     // expiry
     expiresAt: { type: Date },
     // WhatsApp send tracking
@@ -75,6 +75,9 @@ const paymentLinkSchema = new mongoose.Schema(
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
+    },
+    checkoutSnapshot: {
+      type: mongoose.Schema.Types.Mixed,
     },
     lastWebhookAt: { type: Date },
   },

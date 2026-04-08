@@ -231,10 +231,6 @@ export default function AdminNewOrderPage() {
 
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState('');
-  const [blockInfo, setBlockInfo] = useState(null);  // { outstandingBalance, creditLimit }
-  const [lookingUp, setLookingUp] = useState(false);
-  const [phoneDebounce, setPhoneDebounce] = useState(null);
-
   const token = typeof window !== 'undefined' ? window.localStorage.getItem('adminToken') : '';
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -244,43 +240,6 @@ export default function AdminNewOrderPage() {
       .then((res) => setSettings(res?.data?.settings || null))
       .catch(() => {});
   }, []);
-
-  // Phone lookup — auto-fill customer details from ledger + check block status
-  const handlePhoneChange = (phone) => {
-    setCustomer((p) => ({ ...p, phone }));
-    setBlockInfo(null);
-    clearTimeout(phoneDebounce);
-    if (phone.length < 8) return;
-    const t = setTimeout(async () => {
-      setLookingUp(true);
-      try {
-        // Try ledger lookup first
-        const res = await apiFetch(`/api/admin/billing/customers?search=${encodeURIComponent(phone)}&limit=1`, { headers });
-        const ledgers = res?.data?.ledgers || [];
-        if (ledgers.length > 0) {
-          const l = ledgers[0];
-          setCustomer((p) => ({
-            ...p,
-            name:  p.name  || l.name  || '',
-            email: p.email || '',
-          }));
-          setShipping((p) => ({
-            ...p,
-            name:         p.name         || l.name || '',
-            phone:        p.phone        || phone,
-            businessName: p.businessName || l.businessName || '',
-          }));
-          if (l.isOrderBlocked) {
-            setBlockInfo({ blocked: true, outstandingBalance: l.outstandingBalance, creditLimit: l.creditLimit });
-          } else if (l.outstandingBalance > 0) {
-            setBlockInfo({ blocked: false, outstandingBalance: l.outstandingBalance });
-          }
-        }
-      } catch (_) {}
-      finally { setLookingUp(false); }
-    }, 600);
-    setPhoneDebounce(t);
-  };
 
   const syncShipping = (field, val) => {
     setCustomer((p) => ({ ...p, [field]: val }));
@@ -391,39 +350,16 @@ export default function AdminNewOrderPage() {
           <div className="space-y-4">
             <h2 className="text-lg font-bold text-gray-900">Who is this for?</h2>
 
-            {blockInfo?.blocked && (
-              <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
-                <p className="font-semibold text-red-800 text-sm">⛔ Order Blocked</p>
-                <p className="text-sm text-red-700 mt-1">
-                  Outstanding balance: ₹{fmt(blockInfo.outstandingBalance)} exceeds credit limit ₹{fmt(blockInfo.creditLimit)}.
-                  Clear dues before placing a new order.
-                </p>
-              </div>
-            )}
-
-            {blockInfo && !blockInfo.blocked && blockInfo.outstandingBalance > 0 && (
-              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
-                <p className="text-sm text-amber-800">
-                  ⚠️ This customer has an outstanding balance of <strong>₹{fmt(blockInfo.outstandingBalance)}</strong>
-                </p>
-              </div>
-            )}
-
             <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
               <Field label="WhatsApp Number" required>
-                <div className="relative">
-                  <input
-                    type="tel"
-                    value={customer.phone}
-                    onChange={(e) => handlePhoneChange(e.target.value)}
-                    className={inp}
-                    placeholder="+91 98765 43210"
-                    autoFocus
-                  />
-                  {lookingUp && (
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-gray-400">Looking up...</span>
-                  )}
-                </div>
+                <input
+                  type="tel"
+                  value={customer.phone}
+                  onChange={(e) => syncShipping('phone', e.target.value)}
+                  className={inp}
+                  placeholder="+91 98765 43210"
+                  autoFocus
+                />
               </Field>
 
               <Field label="Customer Name">
@@ -618,15 +554,6 @@ export default function AdminNewOrderPage() {
               </Field>
             </div>
 
-            {blockInfo?.blocked && (
-              <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
-                <p className="text-sm text-red-800 font-semibold">
-                  ⛔ This customer is order-blocked (outstanding: ₹{fmt(blockInfo.outstandingBalance)}).
-                  The order will fail — clear their dues first.
-                </p>
-              </div>
-            )}
-
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-4 text-sm">{error}</div>
             )}
@@ -657,10 +584,10 @@ export default function AdminNewOrderPage() {
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={saving || blockInfo?.blocked}
+              disabled={saving}
               className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white py-4 rounded-2xl font-semibold text-base transition-colors"
             >
-              {saving ? 'Placing Order...' : '✓ Place Order & Send Invoice'}
+              {saving ? 'Placing Order...' : '✓ Place Order'}
             </button>
           )}
         </div>

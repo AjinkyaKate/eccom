@@ -11,18 +11,6 @@ const slugify = (value = '') => {
     .replace(/^-+|-+$/g, '');
 };
 
-const variantSchema = new mongoose.Schema(
-  {
-    name: { type: String, required: true, trim: true },
-    price: { type: Number, required: true, min: 0 },
-    discountPrice: { type: Number, min: 0, default: null },
-    stock: { type: Number, min: 0, default: 0 },
-    sku: { type: String, trim: true, uppercase: true },
-    isActive: { type: Boolean, default: true },
-  },
-  { _id: true }
-);
-
 const productSchema = new mongoose.Schema(
   {
     name: {
@@ -43,46 +31,93 @@ const productSchema = new mongoose.Schema(
       trim: true,
       maxlength: [5000, 'Description cannot exceed 5000 characters'],
     },
-    shortDescription: {
+    priceDisplay: {
+      type: String,
+      required: [true, 'Price display is required (e.g., Rs 160 per kg)'],
+      trim: true,
+    },
+    price: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    discountPrice: {
+      type: Number,
+      min: 0,
+    },
+    stock: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    soldCount: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    sku: {
       type: String,
       trim: true,
-      maxlength: [300, 'Short description cannot exceed 300 characters'],
+      uppercase: true,
+      sparse: true,
     },
-    variants: {
-      type: [variantSchema],
-      default: [],
-    },
-    // kept for backwards compat / fallback pricing
-    price: { type: Number, min: 0, default: 0 },
-    discountPrice: { type: Number, min: 0, default: null },
-    images: {
-      type: [String],
-      default: [],
+    category: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Category',
+      index: true,
     },
     mainImage: {
       type: String,
       trim: true,
     },
-    stock: { type: Number, min: 0, default: 0 },
-    sku: { type: String, trim: true, uppercase: true, sparse: true },
+    images: {
+      type: [String],
+      default: [],
+    },
+    shortDescription: {
+      type: String,
+      trim: true,
+      maxlength: [500, 'Short description cannot exceed 500 characters'],
+    },
     specifications: {
       type: mongoose.Schema.Types.Mixed,
       default: {},
     },
-    isActive: {
-      type: Boolean,
-      default: true,
+    tags: {
+      type: [String],
+      default: [],
+    },
+    unit: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      default: 'PCS',
+    },
+    hsn: {
+      type: String,
+      trim: true,
     },
     isFeatured: {
       type: Boolean,
       default: false,
     },
     rating: {
-      average: { type: Number, default: 0, min: 0, max: 5 },
-      count: { type: Number, default: 0, min: 0 },
+      average: {
+        type: Number,
+        min: 0,
+        max: 5,
+        default: 0,
+      },
+      count: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
     },
-    soldCount: { type: Number, default: 0, min: 0 },
-    tags: { type: [String], default: [] },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -94,63 +129,39 @@ const productSchema = new mongoose.Schema(
 );
 
 productSchema.index({ isActive: 1 });
-productSchema.index({ isFeatured: 1 });
-productSchema.index({
-  name: 'text',
-  shortDescription: 'text',
-  description: 'text',
-  tags: 'text',
-});
+productSchema.index({ category: 1, isActive: 1 });
+productSchema.index({ name: 'text', description: 'text' });
 
-productSchema.pre('validate', function () {
-  if (this.name) {
-    this.slug = slugify(this.name);
-  }
+const parseNumericPrice = (value = '') => {
+  const normalized = value.toString().replace(/,/g, '');
+  const match = normalized.match(/(\d+(?:\.\d+)?)/);
 
-  if (this.sku) {
-    this.sku = this.sku.trim().toUpperCase();
-  }
-
-  this.images = Array.isArray(this.images)
-    ? this.images.map((image) => image.trim()).filter(Boolean)
-    : [];
-
-  this.tags = Array.isArray(this.tags)
-    ? this.tags.map((tag) => tag.toString().trim().toLowerCase()).filter(Boolean)
-    : [];
-
-  if (!this.mainImage && this.images.length > 0) {
-    this.mainImage = this.images[0];
-  }
-
-  // auto-generate SKU per variant if missing
-  if (Array.isArray(this.variants)) {
-    this.variants.forEach((v) => {
-      if (!v.sku) {
-        const base = (v.name || 'VAR').replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 5);
-        v.sku = `${base}-${Date.now().toString().slice(-5)}`;
-      }
-    });
-  }
-});
-
-productSchema.virtual('finalPrice').get(function () {
-  return this.discountPrice && this.discountPrice > 0 ? this.discountPrice : this.price;
-});
-
-productSchema.virtual('discountPercentage').get(function () {
-  if (!this.discountPrice || this.discountPrice <= 0 || this.discountPrice >= this.price) {
+  if (!match) {
     return 0;
   }
 
-  return Math.round(((this.price - this.discountPrice) / this.price) * 100);
-});
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 
-productSchema.virtual('inStock').get(function () {
-  return this.stock > 0;
-});
+productSchema.pre('validate', function () {
+  if (this.name && !this.slug) {
+    this.slug = slugify(this.name);
+  }
 
-productSchema.set('toJSON', { virtuals: true });
-productSchema.set('toObject', { virtuals: true });
+  if ((!this.mainImage || !this.mainImage.trim()) && Array.isArray(this.images) && this.images[0]) {
+    this.mainImage = this.images[0];
+  }
+
+  if ((!this.price || this.price <= 0) && this.priceDisplay) {
+    this.price = parseNumericPrice(this.priceDisplay);
+  }
+
+  if (this.discountPrice !== undefined && this.discountPrice !== null && this.price > 0) {
+    if (this.discountPrice > this.price) {
+      this.discountPrice = this.price;
+    }
+  }
+});
 
 module.exports = mongoose.model('Product', productSchema);

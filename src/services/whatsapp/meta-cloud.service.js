@@ -136,6 +136,31 @@ class MetaCloudService {
     }
   }
 
+  async sendImageByUrl(phoneNumber, imageUrl, caption = '') {
+    try {
+      const cleanPhone = this.formatPhoneNumber(phoneNumber);
+      return await this.postMessage({
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: cleanPhone,
+        type: 'image',
+        image: {
+          link: imageUrl,
+          caption: String(caption || ''),
+        },
+      });
+    } catch (error) {
+      console.error('Meta Cloud API Image Error:', error.response?.data || error.message);
+      return {
+        success: false,
+        error:
+          error.response?.data?.error?.message ||
+          error.response?.data?.message ||
+          error.message,
+      };
+    }
+  }
+
   async sendOTP(phoneNumber, otp) {
     const templateName = process.env.META_TEMPLATE_OTP || 'auth_otp_login';
     const expiryMinutes = process.env.OTP_EXPIRY_MINUTES || '5';

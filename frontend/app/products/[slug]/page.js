@@ -48,14 +48,14 @@ export default async function ProductPage({ params }) {
     );
   }
 
-  const price = product.discountPrice && product.discountPrice > 0 ? product.discountPrice : product.price;
+  const price = product.priceDisplay || 'Price on request';
 
   return (
     <div className="mx-auto max-w-shell px-6 py-10">
       <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
         <ProductImageGallery
           images={product.images}
-          mainImage={product.mainImage}
+          mainImage={product.images?.[0]}
           name={product.name}
         />
         <div className="space-y-6">
@@ -64,24 +64,20 @@ export default async function ProductPage({ params }) {
               ← Back to products
             </Link>
             <SectionHeading
-              eyebrow={product.category?.name || 'Product'}
+              eyebrow="Product"
               title={product.name}
-              description={product.shortDescription || product.description || 'No product description added yet.'}
+              description={product.description || 'No product description added yet.'}
             />
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4">
             <div className="rounded-3xl border border-palette-light bg-white p-5 shadow-panel">
-              <p className="text-sm text-palette-dark/65">Current price</p>
-              <p className="mt-3 text-3xl font-semibold text-palette-primary">{formatCurrency(price)}</p>
-            </div>
-            <div className="rounded-3xl border border-palette-light bg-white p-5 shadow-panel">
-              <p className="text-sm text-palette-dark/65">SKU</p>
-              <p className="mt-3 text-xl font-semibold text-palette-dark">{product.sku}</p>
+              <p className="text-sm text-palette-dark/65 font-semibold uppercase tracking-wider">Price</p>
+              <p className="mt-3 text-3xl font-bold text-palette-primary">{price}</p>
             </div>
           </div>
           {product.description && (
             <div className="rounded-[2rem] border border-palette-light bg-white p-6 shadow-panel">
-              <h2 className="text-base font-semibold text-palette-dark">Description</h2>
+              <h2 className="text-base font-semibold text-palette-dark uppercase tracking-widest text-xs">Description</h2>
               <p className="mt-2 text-sm leading-7 text-palette-dark/75">{product.description}</p>
             </div>
           )}

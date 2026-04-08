@@ -14,9 +14,8 @@ const cartItemSchema = new mongoose.Schema(
       default: 1,
     },
     price: {
-      type: Number,
+      type: String, // Store the priceDisplay string
       required: [true, 'Snapshot price is required'],
-      min: [0, 'Price cannot be negative'],
     },
     addedAt: {
       type: Date,
@@ -45,10 +44,6 @@ const cartSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
-
-cartSchema.virtual('subtotal').get(function () {
-  return this.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-});
 
 cartSchema.virtual('totalItems').get(function () {
   return this.items.reduce((sum, item) => sum + item.quantity, 0);

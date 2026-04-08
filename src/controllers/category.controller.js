@@ -1,4 +1,7 @@
+const mongoose = require('mongoose');
 const Category = require('../models/Category');
+const Product = require('../models/Product');
+const { escapeRegex } = require('../utils/regex.util');
 
 /**
  * Get all categories (Public)
@@ -12,11 +15,15 @@ const getAllCategories = async (req, res) => {
     const filter = {};
     if (isActive !== undefined) {
       filter.isActive = isActive === 'true';
+    } else {
+      // Default for public API is to show only active categories
+      filter.isActive = true;
     }
 
     // Get all categories, sorted by displayOrder
     const categories = await Category.find(filter)
       .sort({ displayOrder: 1, name: 1 })
+      .populate('productCount')
       .select('-__v');
 
     res.status(200).json({
@@ -44,7 +51,9 @@ const getCategoryBySlug = async (req, res) => {
   try {
     const { slug } = req.params;
 
-    const category = await Category.findOne({ slug }).select('-__v');
+    const category = await Category.findOne({ slug })
+      .populate('productCount')
+      .select('-__v');
 
     if (!category) {
       return res.status(404).json({
@@ -87,7 +96,7 @@ const createCategory = async (req, res) => {
 
     // Check if category already exists
     const existingCategory = await Category.findOne({
-      name: { $regex: new RegExp(`^${name}$`, 'i') }, // Case-insensitive
+      name: { $regex: new RegExp(`^${escapeRegex(name)}$`, 'i') }, // Case-insensitive
     });
 
     if (existingCategory) {
@@ -140,6 +149,13 @@ const updateCategory = async (req, res) => {
     const { id } = req.params;
     const { name, description, image, isActive, displayOrder } = req.body;
 
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid category ID',
+      });
+    }
+
     // Find category
     const category = await Category.findById(id);
 
@@ -153,7 +169,7 @@ const updateCategory = async (req, res) => {
     // Check if new name conflicts with existing category
     if (name && name !== category.name) {
       const existingCategory = await Category.findOne({
-        name: { $regex: new RegExp(`^${name}$`, 'i') },
+        name: { $regex: new RegExp(`^${escapeRegex(name)}$`, 'i') },
         _id: { $ne: id },
       });
 
@@ -207,6 +223,13 @@ const deleteCategory = async (req, res) => {
   try {
     const { id } = req.params;
 
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid category ID',
+      });
+    }
+
     // Find category
     const category = await Category.findById(id);
 
@@ -217,10 +240,14 @@ const deleteCategory = async (req, res) => {
       });
     }
 
-    // TODO: Check if category has products
-    // For now, allow deletion
-    // Later: const productCount = await Product.countDocuments({ category: id });
-    // if (productCount > 0) { return error }
+    // Check if category has products
+    const productCount = await Product.countDocuments({ category: id });
+    if (productCount > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Category cannot be deleted as it contains ${productCount} products. Please move or delete products first.`,
+      });
+    }
 
     await category.deleteOne();
 

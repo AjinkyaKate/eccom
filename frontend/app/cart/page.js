@@ -167,7 +167,7 @@ export default function CartPage() {
                       {item.product.name}
                     </Link>
                     <p className="mt-1 text-sm text-palette-dark/60">
-                      {formatCurrency(item.price)} each
+                      {item.price} each
                     </p>
                   </div>
                 </div>
@@ -191,7 +191,6 @@ export default function CartPage() {
                       +
                     </button>
                   </div>
-                  <p className="min-w-24 text-right font-semibold text-palette-dark">{formatCurrency(item.subtotal)}</p>
                   <button
                     type="button"
                     onClick={() => removeItem(item.id)}
@@ -205,8 +204,8 @@ export default function CartPage() {
 
             <div className="flex flex-wrap items-center justify-between gap-4 rounded-[2rem] border border-palette-light bg-palette-lighter p-6">
               <div>
-                <p className="text-sm uppercase tracking-[0.18em] text-palette-primary/70">Cart summary</p>
-                <p className="mt-2 text-3xl font-semibold text-palette-dark">{formatCurrency(cart.subtotal || 0)}</p>
+                <p className="text-sm uppercase tracking-[0.18em] text-palette-primary/70">Shopping Cart</p>
+                <p className="mt-2 text-xl font-semibold text-palette-dark">{cart.totalItems} items in your list</p>
               </div>
               <Link
                 href="/checkout"

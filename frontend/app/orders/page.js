@@ -105,7 +105,6 @@ export default function CustomerOrdersPage() {
                   <StatusPill tone={order.payment?.status === 'paid' ? 'success' : 'soft'}>
                     {order.payment?.status}
                   </StatusPill>
-                  <span className="font-semibold text-palette-dark">{formatCurrency(order.pricing?.total || 0)}</span>
                 </div>
               </Link>
             ))}

@@ -36,6 +36,14 @@ class WhatsAppProvider {
     return this.service.sendFileByUrl(phoneNumber, fileUrl, fileName, caption);
   }
 
+  async sendImageByUrl(phoneNumber, imageUrl, caption) {
+    if (typeof this.service.sendImageByUrl === 'function') {
+      return this.service.sendImageByUrl(phoneNumber, imageUrl, caption);
+    }
+
+    return this.service.sendFileByUrl(phoneNumber, imageUrl, 'bill-preview.png', caption);
+  }
+
   async sendTemplate(phoneNumber, templateName, payload = {}) {
     if (typeof this.service.sendTemplate !== 'function') {
       throw new Error(`Provider ${this.providerName} does not support template delivery`);

@@ -8,7 +8,14 @@ const uploadImage = async (req, res) => {
 
     const result = await new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
-        { folder: 'eccom/products', resource_type: 'image' },
+        {
+          folder: 'eccom/products',
+          resource_type: 'image',
+          transformation: [
+            { width: 1600, height: 1600, crop: 'limit' },
+            { quality: 'auto:good', fetch_format: 'auto' },
+          ],
+        },
         (error, uploadResult) => {
           if (error) reject(error);
           else resolve(uploadResult);

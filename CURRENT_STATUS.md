@@ -1,6 +1,6 @@
 # Current Project Status
 
-Last updated: March 10, 2026
+Last updated: April 4, 2026
 
 This note reflects the code currently present in `src/` and `scripts/`. If older planning docs disagree with this file, treat this file as the more accurate snapshot.
 
@@ -14,30 +14,30 @@ This note reflects the code currently present in `src/` and `scripts/`. If older
 - Basic CORS and JSON/form body parsing
 
 ### Customer authentication
-- WhatsApp OTP send flow
-- OTP verification and JWT issuance
+- WhatsApp OTP send flow (fixed: message sent before DB save)
+- OTP verification and JWT issuance (fixed: improved expired OTP handling)
 - Protected customer profile endpoint at `GET /api/auth/me`
-- User model with OTP, admin role, address, verification, and active state fields
+- User model with OTP, admin role, address, verification, and active state fields (fixed: improved max attempts logic)
 - WhatsApp provider abstraction with Meta Cloud API, Green API, and mock implementations
 
 ### Admin authentication and access control
 - Admin login with email/password
 - Admin profile endpoint at `GET /api/admin/me`
 - Role-based middleware with `protect` and `adminOnly`
-- Seed script for initial admin creation
+- Seed script for initial admin creation (fixed: uses env variables for credentials)
 
 ### Categories
 - Category model with slug generation and ordering
-- Public category list and single-category APIs
-- Admin create, update, and delete category APIs
+- Public category list and single-category APIs (fixed: defaults to active categories, populates product count)
+- Admin create, update, and delete category APIs (fixed: regex escape for duplicates, ID validation, product existence check before delete)
 
 ### Products
-- Product model with slug, SKU, pricing, stock, tags, ratings, and category relation
-- Public product listing with pagination
-- Public product search
+- Product model with slug, SKU, pricing, stock, tags, ratings, and category relation (fixed: added missing category field)
+- Public product listing with pagination (fixed: added category filtering and lookup)
+- Public product search (fixed: added category info and computed fields)
 - Public product detail by slug
 - Admin product listing
-- Admin product create, update, delete, and stock update APIs
+- Admin product create, update, delete, and stock update APIs (fixed: category field validation and persistence)
 
 ### Cart
 - Cart model with per-user unique cart
@@ -73,40 +73,36 @@ This note reflects the code currently present in `src/` and `scripts/`. If older
 
 ### Hardening and cleanup still needed
 - Automated tests
-- Production-safe admin bootstrap flow
-- OTP edge-case fixes
-- Safer category deletion rules
 - Documentation cleanup so endpoint/status docs match the code
 - Secret/config sanitization before sharing docs externally
 
 ## Edge Cases And Risks Found So Far
 
-1. OTP resend lockout after max attempts
-   The resend path checks max attempts before expired OTP state is safely reset, so a user can get stuck until data is manually cleared.
+1. OTP resend lockout after max attempts (FIXED)
+   Now checks if OTP is expired before blocking resend.
 
-2. OTP verification can fail with a server error when OTP state disappears
-   Verification increments attempts and saves before checking validity. The save hook can clear expired OTP data, after which the code still reads `user.otp.attempts`.
+2. OTP verification can fail with a server error when OTP state disappears (FIXED)
+   Improved handling of missing/expired OTP state during verification.
 
-3. OTP is persisted before WhatsApp delivery is confirmed
-   If the provider call fails, the database can still contain a fresh OTP that the user never received.
+3. OTP is persisted before WhatsApp delivery is confirmed (FIXED)
+   Order of operations changed: send message first, then save to DB.
 
-4. Admin bootstrap credentials are predictable
-   The seed script creates a known default admin password and prints it to stdout.
+4. Admin bootstrap credentials are predictable (FIXED)
+   Seed script now uses `ADMIN_EMAIL`, `ADMIN_PASSWORD`, etc. from `.env`.
 
-5. Category deletion can orphan products
-   Categories can be deleted even when products still reference them.
+5. Category deletion can orphan products (FIXED)
+   Now checks `Product` collection before allowing category deletion.
 
-6. Category duplicate checks use raw regular expressions from user input
-   Special characters in category names can cause false matches or runtime errors.
+6. Category duplicate checks use raw regular expressions from user input (FIXED)
+   Added `escapeRegex` utility.
 
-7. Category update/delete do not validate malformed ids first
-   Invalid ids fall through to generic server errors instead of clean `400` responses.
+7. Category update/delete do not validate malformed ids first (FIXED)
+   Added `mongoose.Types.ObjectId.isValid` checks.
 
-8. Public category APIs expose inactive categories unless filtered explicitly
-   That may be intentional, but it is worth confirming against storefront expectations.
+8. Public category APIs expose inactive categories unless filtered explicitly (FIXED)
+   Now defaults to `isActive: true`.
 
-9. Status docs are inconsistent with the implemented code
-   Some docs still say categories/products/cart are pending even though code exists for them.
+9. Status docs are inconsistent with the implemented code (FIXED - This file updated)
 
 10. Sensitive-looking config values appear in project documentation
     Before the project is shared, docs should use placeholders instead of real-looking secrets or credentials.

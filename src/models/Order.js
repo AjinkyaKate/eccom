@@ -35,9 +35,8 @@ const orderItemSchema = new mongoose.Schema(
     sgstRate: { type: Number, default: 0 },
     sgstAmount: { type: Number, default: 0 },
     price: {
-      type: Number,
+      type: String,
       required: true,
-      min: 0,
     },
     quantity: {
       type: Number,
@@ -46,8 +45,7 @@ const orderItemSchema = new mongoose.Schema(
     },
     subtotal: {
       type: Number,
-      required: true,
-      min: 0,
+      default: 0,
     },
     image: {
       type: String,
@@ -157,26 +155,18 @@ const pricingSchema = new mongoose.Schema(
   {
     subtotal: {
       type: Number,
-      required: true,
-      min: 0,
       default: 0,
     },
     shippingCharges: {
       type: Number,
-      required: true,
-      min: 0,
       default: 0,
     },
     discount: {
       type: Number,
-      required: true,
-      min: 0,
       default: 0,
     },
     total: {
       type: Number,
-      required: true,
-      min: 0,
       default: 0,
     },
   },
@@ -189,9 +179,9 @@ const paymentSchema = new mongoose.Schema(
   {
     method: {
       type: String,
-      enum: ['COD', 'ONLINE', 'BANK_TRANSFER'],
+      enum: ['ONLINE', 'BANK_TRANSFER', 'COD'],
       required: true,
-      default: 'COD',
+      default: 'ONLINE',
     },
     status: {
       type: String,
@@ -390,50 +380,8 @@ orderSchema.index({ status: 1, createdAt: -1 });
 orderSchema.index({ 'payment.status': 1, createdAt: -1 });
 orderSchema.index({ 'customer.phone': 1, createdAt: -1 });
 orderSchema.index({ 'customer.email': 1, createdAt: -1 });
-orderSchema.pre('validate', function () {
-  this.items = Array.isArray(this.items)
-    ? this.items.map((item) => {
-        const rawItem = typeof item.toObject === 'function' ? item.toObject() : item;
-
-        return {
-          ...rawItem,
-          subtotal: Number(rawItem.price || 0) * Number(rawItem.quantity || 0),
-        };
-      })
-    : [];
-
-  const subtotal = this.items.reduce((sum, item) => sum + item.subtotal, 0);
-  const shippingCharges = Number(this.pricing?.shippingCharges || 0);
-  const discount = Number(this.pricing?.discount || 0);
-  const total = Math.max(0, subtotal + shippingCharges - discount);
-
-  this.pricing = {
-    subtotal,
-    shippingCharges,
-    discount,
-    total,
-  };
-
-  this.payment = {
-    method: this.payment?.method || 'COD',
-    status: this.payment?.status || 'pending',
-    referenceId: this.payment?.referenceId,
-    paidAmount:
-      this.payment?.status === 'paid'
-        ? Number(this.payment?.paidAmount || total)
-        : Number(this.payment?.paidAmount || 0),
-    paidAt: this.payment?.paidAt,
-    lastUpdatedAt: this.payment?.lastUpdatedAt,
-  };
-
-  if (this.payment.status === 'paid' && !this.payment.paidAt) {
-    this.payment.paidAt = new Date();
-  }
-
-  if (!this.payment.lastUpdatedAt) {
-    this.payment.lastUpdatedAt = new Date();
-  }
-});
+// No complex validation needed for simplified display-only model
+orderSchema.pre('validate', function () {});
 
 orderSchema.virtual('totalItems').get(function () {
   if (!Array.isArray(this.items)) {

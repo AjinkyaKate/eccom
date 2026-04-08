@@ -8,6 +8,7 @@ import { apiFetch, getErrorMessage } from '@/lib/api';
 import { formatCurrency, formatDateTime } from '@/lib/format';
 
 const statusOptions = ['', 'placed', 'confirmed', 'packed', 'dispatched', 'in_transit', 'delivered', 'cancelled'];
+const paymentStatusOptions = ['', 'pending', 'paid', 'failed', 'refunded'];
 
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState([]);
@@ -15,6 +16,7 @@ export default function AdminOrdersPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [status, setStatus] = useState('');
+  const [paymentStatus, setPaymentStatus] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -23,11 +25,12 @@ export default function AdminOrdersPage() {
   const query = useMemo(() => {
     const params = new URLSearchParams();
     if (status) params.set('status', status);
+    if (paymentStatus) params.set('paymentStatus', paymentStatus);
     if (search) params.set('search', search);
     params.set('page', page);
     params.set('limit', '20');
     return params.toString();
-  }, [status, search, page]);
+  }, [status, paymentStatus, search, page]);
 
   useEffect(() => {
     let isMounted = true;
@@ -106,22 +109,57 @@ export default function AdminOrdersPage() {
               ))}
             </select>
           </div>
+          <div className="w-48">
+            <select
+              value={paymentStatus}
+              onChange={(e) => { setPaymentStatus(e.target.value); setPage(1); }}
+              className="input-field w-full"
+            >
+              {paymentStatusOptions.map((value) => (
+                <option key={value || 'all-payments'} value={value}>
+                  {value ? `${value} payments` : 'All payments'}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {stats && (
           <div className="mt-4 flex flex-wrap gap-2">
-            {Object.entries(stats).map(([key, value]) => (
+            <button
+              type="button"
+              onClick={() => { setStatus(''); setPaymentStatus(''); setPage(1); }}
+              className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                !status && !paymentStatus
+                  ? 'border-palette-primary bg-palette-primary text-white'
+                  : 'border-palette-light bg-palette-lighter text-palette-dark hover:border-palette-primary hover:text-palette-primary'
+              }`}
+            >
+              total: {stats.total ?? 0}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setStatus(''); setPaymentStatus(paymentStatus === 'pending' ? '' : 'pending'); setPage(1); }}
+              className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                paymentStatus === 'pending'
+                  ? 'border-palette-primary bg-palette-primary text-white'
+                  : 'border-palette-light bg-palette-lighter text-palette-dark hover:border-palette-primary hover:text-palette-primary'
+              }`}
+            >
+              payment pending: {stats.paymentPending ?? 0}
+            </button>
+            {statusOptions.filter(Boolean).map((value) => (
               <button
-                key={key}
+                key={value}
                 type="button"
-                onClick={() => { setStatus(key === status ? '' : key); setPage(1); }}
+                onClick={() => { setPaymentStatus(''); setStatus(value === status ? '' : value); setPage(1); }}
                 className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-                  status === key
+                  status === value
                     ? 'border-palette-primary bg-palette-primary text-white'
                     : 'border-palette-light bg-palette-lighter text-palette-dark hover:border-palette-primary hover:text-palette-primary'
                 }`}
               >
-                {key.replace('_', ' ')}: {value}
+                {value.replace('_', ' ')}: {stats[value] ?? 0}
               </button>
             ))}
           </div>

@@ -89,11 +89,6 @@ userSchema.index({ role: 1 });
 
 // Hash password before saving (only if password is modified)
 userSchema.pre('save', async function () {
-  // Clean up expired OTP
-  if (this.otp && this.otp.expiresAt && this.otp.expiresAt < new Date()) {
-    this.otp = undefined;
-  }
-
   // Hash password if modified
   if (this.password && this.isModified('password')) {
     const salt = await bcrypt.genSalt(10);
@@ -117,7 +112,13 @@ userSchema.methods.isOTPValid = function (enteredOTP) {
 // Method to check if max attempts exceeded
 userSchema.methods.isMaxAttemptsExceeded = function () {
   const maxAttempts = parseInt(process.env.OTP_MAX_ATTEMPTS) || 3;
-  return this.otp && this.otp.attempts >= maxAttempts;
+  
+  // If no OTP or it's already expired, attempts don't matter (we can send a new one)
+  if (!this.otp || !this.otp.expiresAt || this.otp.expiresAt < new Date()) {
+    return false;
+  }
+
+  return this.otp.attempts >= maxAttempts;
 };
 
 // Method to compare password (for admin login)

@@ -40,6 +40,19 @@ class MockWhatsAppService {
     };
   }
 
+  async sendImageByUrl(phoneNumber, imageUrl, caption) {
+    const messageId = `mock-image-${Date.now()}`;
+
+    console.log(`[Mock WhatsApp Image] ${phoneNumber}: [${imageUrl}] - ${caption}`);
+
+    return {
+      success: true,
+      mock: true,
+      messageId,
+      message: 'Mock WhatsApp image message generated for local testing',
+    };
+  }
+
   async sendOTP(phoneNumber, otp) {
     const result = await this.sendTemplate(phoneNumber, 'auth_otp_login', {
       bodyParameters: [otp, process.env.OTP_EXPIRY_MINUTES || '5'],

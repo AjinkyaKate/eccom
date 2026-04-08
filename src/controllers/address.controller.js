@@ -28,7 +28,7 @@ const validateAddressFields = (body) => {
 // GET /api/addresses
 const getAddresses = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select('addresses');
+    const user = await User.findById(req.user.userId).select('addresses');
     res.json({ success: true, data: user.addresses.map(formatAddress) });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error' });
@@ -38,7 +38,7 @@ const getAddresses = async (req, res) => {
 // POST /api/addresses
 const addAddress = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select('addresses');
+    const user = await User.findById(req.user.userId).select('addresses');
 
     if (user.addresses.length >= MAX_ADDRESSES) {
       return res.status(400).json({
@@ -90,7 +90,7 @@ const updateAddress = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid address id' });
     }
 
-    const user = await User.findById(req.user._id).select('addresses');
+    const user = await User.findById(req.user.userId).select('addresses');
     const addr = user.addresses.id(id);
     if (!addr) return res.status(404).json({ success: false, message: 'Address not found' });
 
@@ -123,7 +123,7 @@ const deleteAddress = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid address id' });
     }
 
-    const user = await User.findById(req.user._id).select('addresses');
+    const user = await User.findById(req.user.userId).select('addresses');
     const addr = user.addresses.id(id);
     if (!addr) return res.status(404).json({ success: false, message: 'Address not found' });
 
@@ -150,7 +150,7 @@ const setDefaultAddress = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid address id' });
     }
 
-    const user = await User.findById(req.user._id).select('addresses');
+    const user = await User.findById(req.user.userId).select('addresses');
     const addr = user.addresses.id(id);
     if (!addr) return res.status(404).json({ success: false, message: 'Address not found' });
 
