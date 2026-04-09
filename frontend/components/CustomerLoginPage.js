@@ -13,7 +13,7 @@ export default function CustomerLoginPage({ redirectTo = '/cart' }) {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const OTP_LENGTH = 4;
+  const [otpLength, setOtpLength] = useState(4);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.localStorage.getItem(CUSTOMER_TOKEN_KEY)) {
@@ -33,12 +33,15 @@ export default function CustomerLoginPage({ redirectTo = '/cart' }) {
         body: JSON.stringify({ phone }),
       });
 
+      const serverOtpLength = response?.data?.otpLength || 4;
+      setOtpLength(serverOtpLength);
       setStep('verify');
+
       if (response?.data?.debugOtp) {
         setOtp(response.data.debugOtp);
         setMessage(`Mock OTP (local testing): ${response.data.debugOtp}`);
       } else {
-        setMessage(response?.message || `OTP sent to your WhatsApp. Enter the ${OTP_LENGTH}-digit code to continue.`);
+        setMessage(response?.message || `OTP sent to your WhatsApp. Enter the ${serverOtpLength}-digit code to continue.`);
       }
     } catch (requestError) {
       setError(getErrorMessage(requestError));
@@ -136,9 +139,9 @@ export default function CustomerLoginPage({ redirectTo = '/cart' }) {
                   type="text"
                   inputMode="numeric"
                   value={otp}
-                  onChange={(event) => setOtp(event.target.value.replace(/\D/g, '').slice(0, OTP_LENGTH))}
-                  placeholder={`Enter ${OTP_LENGTH}-digit OTP`}
-                  maxLength={OTP_LENGTH}
+                  onChange={(event) => setOtp(event.target.value.replace(/\D/g, '').slice(0, otpLength))}
+                  placeholder={`Enter ${otpLength}-digit OTP`}
+                  maxLength={otpLength}
                   className="w-full rounded-2xl border border-palette-light bg-white px-4 py-3 text-base text-palette-dark outline-none transition focus:border-palette-primary"
                 />
                 <button

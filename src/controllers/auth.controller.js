@@ -68,7 +68,7 @@ const sendOTP = async (req, res) => {
 
     const responseData = {
       phone,
-      otpLength: DEFAULT_OTP_LENGTH,
+      otpLength: otp.length,
       expiresIn: `${process.env.OTP_EXPIRY_MINUTES || 5} minutes`,
       deliveryMode: result.mock ? 'mock' : 'whatsapp',
     };
